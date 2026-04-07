@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Snake</h1>
+    <p class="subtitle">Use arrow keys or WASD</p>
+
+    <div class="game-container">
+        <div class="game-panel">
+            <div class="hud">
+                <div class="hud-item">
+                    <div class="hud-label">Score</div>
+                    <div class="hud-value" id="score">0</div>
+                </div>
+                <div class="hud-item">
+                    <div class="hud-label">Best</div>
+                    <div class="hud-value" id="high-score">0</div>
+                </div>
+                <div class="hud-item">
+                    <div class="hud-label">Length</div>
+                    <div class="hud-value" id="length">3</div>
+                </div>
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas id="game-canvas" width="400" height="400"></canvas>
+
+                <div class="game-over-overlay" id="game-over-overlay" style="display:none;">
+                    <h2>Game Over</h2>
+                    <div class="final-score" id="final-score">Score: 0</div>
+                    <input
+                        type="text"
+                        id="player-name"
+                        class="name-input"
+                        placeholder="Enter your name"
+                        maxlength="20"
+                    >
+                    <button onclick="submitScore()">Submit Score</button>
+                    <button onclick="hideOverlay(); startGame();">Play Again</button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="start-btn" onclick="startGame()">Start</button>
+            </div>
+            <div class="game-message" id="game-message"></div>
+        </div>
+
+        <div class="leaderboard-panel">
+            <h2>Leaderboard</h2>
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <tr>
+                        <td colspan="3" class="empty-state">No scores yet</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/static/game.js"></script>
+</body>
+</html>
