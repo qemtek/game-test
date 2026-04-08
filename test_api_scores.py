@@ -1,10 +1,12 @@
 """
-Tests for PARE-34 (GET /api/scores) and PARE-35 (POST /api/scores).
+Tests for PARE-34 (GET /api/scores), PARE-35 (POST /api/scores),
+and PARE-36 (GET /api/health).
 
 Acceptance criteria covered:
   PARE-34: GET /api/scores returns top-10 rows ordered by score DESC as a JSON array.
   PARE-35: POST /api/scores validates name/score, inserts, returns 201 with full row
            including created_at.
+  PARE-36: GET /api/health returns {"status": "ok"} with HTTP 200.
 """
 
 import os
@@ -321,3 +323,19 @@ class TestPostScore:
         id1 = post_score(client, "Alice", 100).get_json()["id"]
         id2 = post_score(client, "Bob", 200).get_json()["id"]
         assert id1 != id2
+
+
+# ===========================================================================
+# PARE-36 — GET /api/health
+# ===========================================================================
+
+class TestApiHealth:
+    def test_returns_200(self, client):
+        """PARE-36: GET /api/health returns HTTP 200."""
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+
+    def test_returns_status_ok(self, client):
+        """PARE-36: response body is exactly {"status": "ok"}."""
+        resp = client.get("/api/health")
+        assert resp.get_json() == {"status": "ok"}
