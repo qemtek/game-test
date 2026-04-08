@@ -339,3 +339,246 @@ class TestApiHealth:
         """PARE-36: response body is exactly {"status": "ok"}."""
         resp = client.get("/api/health")
         assert resp.get_json() == {"status": "ok"}
+
+
+# ===========================================================================
+# PARE-37 — Paginated & Filtered Score List
+# ===========================================================================
+
+class TestGetScoresPaginated:
+    def test_no_params_returns_first_ten(self, client):
+        """PARE-37: no params → up to 10 rows by score DESC."""
+        for i in range(15):
+            post_score(client, f"P{i}", i + 1)
+        rows = client.get("/api/scores").get_json()
+        assert len(rows) == 10
+        scores = [r["score"] for r in rows]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_limit_param(self, client):
+        """PARE-37: ?limit=5 returns at most 5 rows."""
+        for i in range(10):
+            post_score(client, f"P{i}", i + 1)
+        rows = client.get("/api/scores?limit=5").get_json()
+        assert len(rows) == 5
+
+    def test_limit_capped_at_100(self, client):
+        """PARE-37: ?limit=200 is capped at 100."""
+        for i in range(10):
+            post_score(client, f"P{i}", i + 1)
+        rows = client.get("/api/scores?limit=200").get_json()
+        assert len(rows) <= 100
+
+    def test_offset_param(self, client):
+        """PARE-37: ?offset=5 skips first 5 results."""
+        for i in range(10):
+            post_score(client, f"P{i}", i + 1)
+        all_rows = client.get("/api/scores?limit=100").get_json()
+        offset_rows = client.get("/api/scores?offset=5&limit=100").get_json()
+        assert offset_rows == all_rows[5:]
+
+    def test_filter_by_name(self, client):
+        """PARE-37: ?name=Alice returns only Alice's scores."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 300)
+        rows = client.get("/api/scores?name=Alice").get_json()
+        assert all(r["name"] == "Alice" for r in rows)
+        assert len(rows) == 2
+
+    def test_filter_by_name_and_limit(self, client):
+        """PARE-37: ?name=Alice&limit=1 combination."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        rows = client.get("/api/scores?name=Alice&limit=1").get_json()
+        assert len(rows) == 1
+        assert rows[0]["name"] == "Alice"
+        assert rows[0]["score"] == 300  # highest
+
+    def test_invalid_limit_returns_400(self, client):
+        """PARE-37: ?limit=abc → 400."""
+        resp = client.get("/api/scores?limit=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.get_json()
+
+    def test_invalid_offset_returns_400(self, client):
+        """PARE-37: ?offset=abc → 400."""
+        resp = client.get("/api/scores?offset=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.get_json()
+
+    def test_float_limit_returns_400(self, client):
+        """PARE-37: ?limit=1.5 → 400 (non-integer string)."""
+        resp = client.get("/api/scores?limit=1.5")
+        assert resp.status_code == 400
+
+    def test_name_filter_case_sensitive(self, client):
+        """PARE-37: name filter is case-sensitive."""
+        post_score(client, "Alice", 100)
+        rows = client.get("/api/scores?name=alice").get_json()
+        assert rows == []
+
+
+# ===========================================================================
+# PARE-38 — Fetch Score by ID
+# ===========================================================================
+
+class TestGetScoreById:
+    def test_valid_id_returns_200(self, client):
+        """PARE-38: existing id → 200."""
+        body = post_score(client, "Alice", 500).get_json()
+        resp = client.get(f"/api/scores/{body['id']}")
+        assert resp.status_code == 200
+
+    def test_nonexistent_id_returns_404(self, client):
+        """PARE-38: non-existent id → 404."""
+        resp = client.get("/api/scores/9999")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_returned_fields(self, client):
+        """PARE-38: response has id, name, score, created_at."""
+        body = post_score(client, "Bob", 750).get_json()
+        row = client.get(f"/api/scores/{body['id']}").get_json()
+        assert set(row.keys()) == {"id", "name", "score", "created_at"}
+
+    def test_values_match_insert(self, client):
+        """PARE-38: returned values match what was inserted."""
+        inserted = post_score(client, "Charlie", 999).get_json()
+        fetched = client.get(f"/api/scores/{inserted['id']}").get_json()
+        assert fetched["name"] == "Charlie"
+        assert fetched["score"] == 999
+        assert fetched["id"] == inserted["id"]
+
+    def test_retrieve_multiple_by_id(self, client):
+        """PARE-38: retrieve each of multiple inserts by its id."""
+        ids = []
+        for name, score in [("Alice", 100), ("Bob", 200)]:
+            ids.append(post_score(client, name, score).get_json()["id"])
+        row0 = client.get(f"/api/scores/{ids[0]}").get_json()
+        row1 = client.get(f"/api/scores/{ids[1]}").get_json()
+        assert row0["name"] == "Alice"
+        assert row1["name"] == "Bob"
+
+
+# ===========================================================================
+# PARE-39 — Player List
+# ===========================================================================
+
+class TestGetPlayers:
+    def test_empty_db_returns_empty_list(self, client):
+        """PARE-39: no scores → []."""
+        resp = client.get("/api/players")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_single_player_multiple_games(self, client):
+        """PARE-39: single player stats are correct."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        rows = client.get("/api/players").get_json()
+        assert len(rows) == 1
+        p = rows[0]
+        assert p["name"] == "Alice"
+        assert p["best_score"] == 300
+        assert p["total_games"] == 3
+        assert isinstance(p["avg_score"], (int, float))
+        assert abs(p["avg_score"] - 200.0) < 0.01
+
+    def test_multiple_players_ordered_by_best_score(self, client):
+        """PARE-39: multiple players ordered best_score DESC."""
+        post_score(client, "Charlie", 500)
+        post_score(client, "Alice", 1000)
+        post_score(client, "Bob", 750)
+        rows = client.get("/api/players").get_json()
+        best_scores = [r["best_score"] for r in rows]
+        assert best_scores == sorted(best_scores, reverse=True)
+        assert rows[0]["name"] == "Alice"
+
+    def test_response_fields(self, client):
+        """PARE-39: each entry has name, best_score, total_games, avg_score."""
+        post_score(client, "Alice", 100)
+        rows = client.get("/api/players").get_json()
+        assert set(rows[0].keys()) == {"name", "best_score", "total_games", "avg_score"}
+
+    def test_avg_score_is_numeric(self, client):
+        """PARE-39: avg_score is int or float."""
+        post_score(client, "Alice", 100)
+        rows = client.get("/api/players").get_json()
+        assert isinstance(rows[0]["avg_score"], (int, float))
+
+
+# ===========================================================================
+# PARE-40 — Player Profile
+# ===========================================================================
+
+class TestGetPlayerProfile:
+    def test_unknown_player_returns_404(self, client):
+        """PARE-40: unknown name → 404."""
+        resp = client.get("/api/players/Nobody")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_single_player_rank_1(self, client):
+        """PARE-40: only player in DB gets rank 1."""
+        post_score(client, "Alice", 500)
+        profile = client.get("/api/players/Alice").get_json()
+        assert profile["rank"] == 1
+
+    def test_profile_fields(self, client):
+        """PARE-40: response has expected top-level fields."""
+        post_score(client, "Alice", 500)
+        profile = client.get("/api/players/Alice").get_json()
+        assert set(profile.keys()) == {"name", "rank", "best_score", "avg_score", "total_games", "recent_scores"}
+
+    def test_rank_ordering(self, client):
+        """PARE-40: rank=1 for top player, rank=2 for second-best."""
+        post_score(client, "Alice", 1000)
+        post_score(client, "Bob", 500)
+        alice = client.get("/api/players/Alice").get_json()
+        bob = client.get("/api/players/Bob").get_json()
+        assert alice["rank"] == 1
+        assert bob["rank"] == 2
+
+    def test_recent_scores_capped_at_10(self, client):
+        """PARE-40: recent_scores has at most 10 entries."""
+        for i in range(15):
+            post_score(client, "Alice", i + 1)
+        profile = client.get("/api/players/Alice").get_json()
+        assert len(profile["recent_scores"]) <= 10
+
+    def test_recent_scores_no_name_field(self, client):
+        """PARE-40: recent_scores entries have id, score, created_at — no name."""
+        post_score(client, "Alice", 100)
+        profile = client.get("/api/players/Alice").get_json()
+        for entry in profile["recent_scores"]:
+            assert set(entry.keys()) == {"id", "score", "created_at"}
+
+    def test_stats_correct(self, client):
+        """PARE-40: best_score, total_games, avg_score are correct."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        profile = client.get("/api/players/Alice").get_json()
+        assert profile["best_score"] == 300
+        assert profile["total_games"] == 3
+        assert isinstance(profile["avg_score"], (int, float))
+        assert abs(profile["avg_score"] - 200.0) < 0.01
+
+    def test_tied_best_score_same_rank(self, client):
+        """PARE-40: players with the same best score share the same rank."""
+        post_score(client, "Alice", 500)
+        post_score(client, "Bob", 500)
+        alice = client.get("/api/players/Alice").get_json()
+        bob = client.get("/api/players/Bob").get_json()
+        assert alice["rank"] == bob["rank"]
+
+    def test_recent_scores_ordered_by_created_at_desc(self, client):
+        """PARE-40: recent_scores are ordered created_at DESC (latest first, ties allowed)."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        profile = client.get("/api/players/Alice").get_json()
+        recent = profile["recent_scores"]
+        assert len(recent) == 3
+        # created_at values must be non-increasing (DESC with possible ties)
+        timestamps = [r["created_at"] for r in recent]
+        assert timestamps == sorted(timestamps, reverse=True)
