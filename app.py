@@ -14,6 +14,11 @@ def health():
     return jsonify({"status": "ok", "version": "1.0.0"})
 
 
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    return jsonify({"status": "ok"})
+
+
 @app.route('/api/scores', methods=['GET'])
 def get_scores():
     with database.get_db() as conn:
