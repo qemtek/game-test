@@ -582,3 +582,646 @@ class TestGetPlayerProfile:
         # created_at values must be non-increasing (DESC with possible ties)
         timestamps = [r["created_at"] for r in recent]
         assert timestamps == sorted(timestamps, reverse=True)
+
+
+# ===========================================================================
+# Helpers for tournament tests
+# ===========================================================================
+
+from datetime import datetime, timezone, timedelta
+
+
+def future_ts(seconds=3600):
+    """Return an ISO8601 UTC timestamp N seconds in the future."""
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+def past_ts(seconds=3600):
+    """Return an ISO8601 UTC timestamp N seconds in the past."""
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+def create_tournament(client, name="Test Cup", starts_offset=3600, ends_offset=7200):
+    """Create a tournament and return the response."""
+    return client.post("/api/tournaments", json={
+        "name": name,
+        "starts_at": future_ts(starts_offset),
+        "ends_at": future_ts(ends_offset),
+    })
+
+
+def create_active_tournament(client, name="Active Cup"):
+    """Create a tournament that is already active (starts_at in the past)."""
+    return client.post("/api/tournaments", json={
+        "name": name,
+        "starts_at": future_ts(1),   # just 1 second ahead — will appear open at creation
+        "ends_at": future_ts(7200),
+    })
+
+
+def create_tournament_raw(client, payload):
+    """Create a tournament with a raw payload dict."""
+    return client.post("/api/tournaments", json=payload)
+
+
+def join_tournament(client, tournament_id, name="Alice"):
+    return client.post(f"/api/tournaments/{tournament_id}/join", json={"name": name})
+
+
+def submit_score(client, tournament_id, name, score):
+    return client.post(f"/api/tournaments/{tournament_id}/score", json={"name": name, "score": score})
+
+
+# ===========================================================================
+# PARE-41/42 — POST /api/tournaments (create)
+# ===========================================================================
+
+class TestCreateTournament:
+    def test_create_returns_201(self, client):
+        """PARE-42: successful creation returns 201."""
+        resp = create_tournament(client)
+        assert resp.status_code == 201
+
+    def test_create_response_fields(self, client):
+        """PARE-42: response contains all expected fields."""
+        resp = create_tournament(client, name="Spring Cup")
+        data = resp.get_json()
+        assert set(data.keys()) == {"id", "name", "status", "starts_at", "ends_at", "created_at"}
+
+    def test_create_status_is_open(self, client):
+        """PARE-42: new tournament starts with status='open'."""
+        data = create_tournament(client).get_json()
+        assert data["status"] == "open"
+
+    def test_create_name_stored(self, client):
+        """PARE-42: name is stored correctly."""
+        data = create_tournament(client, name="My Cup").get_json()
+        assert data["name"] == "My Cup"
+
+    def test_create_id_is_integer(self, client):
+        """PARE-42: id is an integer."""
+        data = create_tournament(client).get_json()
+        assert isinstance(data["id"], int)
+
+    def test_create_missing_name_returns_400(self, client):
+        """PARE-42: missing name → 400."""
+        resp = create_tournament_raw(client, {
+            "starts_at": future_ts(3600),
+            "ends_at": future_ts(7200),
+        })
+        assert resp.status_code == 400
+        assert "error" in resp.get_json()
+
+    def test_create_empty_name_returns_400(self, client):
+        """PARE-42: empty name → 400."""
+        resp = create_tournament_raw(client, {
+            "name": "   ",
+            "starts_at": future_ts(3600),
+            "ends_at": future_ts(7200),
+        })
+        assert resp.status_code == 400
+
+    def test_create_missing_starts_at_returns_400(self, client):
+        """PARE-42: missing starts_at → 400."""
+        resp = create_tournament_raw(client, {
+            "name": "Cup",
+            "ends_at": future_ts(7200),
+        })
+        assert resp.status_code == 400
+
+    def test_create_missing_ends_at_returns_400(self, client):
+        """PARE-42: missing ends_at → 400."""
+        resp = create_tournament_raw(client, {
+            "name": "Cup",
+            "starts_at": future_ts(3600),
+        })
+        assert resp.status_code == 400
+
+    def test_create_ends_before_starts_returns_400(self, client):
+        """PARE-42: ends_at <= starts_at → 400."""
+        resp = create_tournament_raw(client, {
+            "name": "Cup",
+            "starts_at": future_ts(7200),
+            "ends_at": future_ts(3600),
+        })
+        assert resp.status_code == 400
+
+    def test_create_starts_in_past_returns_400(self, client):
+        """PARE-42: starts_at in the past → 400."""
+        resp = create_tournament_raw(client, {
+            "name": "Cup",
+            "starts_at": past_ts(3600),
+            "ends_at": future_ts(7200),
+        })
+        assert resp.status_code == 400
+
+    def test_create_no_body_returns_400(self, client):
+        """PARE-42: no JSON body → 400."""
+        resp = client.post("/api/tournaments", data="not json", content_type="text/plain")
+        assert resp.status_code == 400
+
+    def test_create_multiple_get_distinct_ids(self, client):
+        """PARE-42: each tournament gets a unique id."""
+        id1 = create_tournament(client, name="Cup 1").get_json()["id"]
+        id2 = create_tournament(client, name="Cup 2").get_json()["id"]
+        assert id1 != id2
+
+
+# ===========================================================================
+# PARE-43 — GET /api/tournaments (list with dynamic status)
+# ===========================================================================
+
+class TestListTournaments:
+    def test_empty_list(self, client):
+        """PARE-43: no tournaments → empty array."""
+        resp = client.get("/api/tournaments")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_list_contains_created_tournament(self, client):
+        """PARE-43: newly created tournament appears in list."""
+        create_tournament(client, name="Spring Cup")
+        data = client.get("/api/tournaments").get_json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Spring Cup"
+
+    def test_list_ordered_starts_at_desc(self, client):
+        """PARE-43: tournaments are ordered by starts_at DESC."""
+        create_tournament(client, name="Early", starts_offset=3600, ends_offset=7200)
+        create_tournament(client, name="Late", starts_offset=7200, ends_offset=10800)
+        data = client.get("/api/tournaments").get_json()
+        starts = [t["starts_at"] for t in data]
+        assert starts == sorted(starts, reverse=True)
+
+    def test_list_status_filter_open(self, client):
+        """PARE-43: ?status=open filters correctly."""
+        create_tournament(client, name="Open Cup")
+        data = client.get("/api/tournaments?status=open").get_json()
+        assert all(t["status"] == "open" for t in data)
+        assert len(data) >= 1
+
+    def test_list_status_filter_excludes_others(self, client):
+        """PARE-43: ?status=completed returns empty when only open tournaments exist."""
+        create_tournament(client, name="Open Cup")
+        data = client.get("/api/tournaments?status=completed").get_json()
+        assert data == []
+
+    def test_list_response_fields(self, client):
+        """PARE-43: each entry has the expected fields."""
+        create_tournament(client)
+        data = client.get("/api/tournaments").get_json()
+        assert set(data[0].keys()) == {"id", "name", "status", "starts_at", "ends_at", "created_at"}
+
+    def test_list_no_standings_field(self, client):
+        """PARE-43: list endpoint does NOT include standings."""
+        create_tournament(client)
+        data = client.get("/api/tournaments").get_json()
+        assert "standings" not in data[0]
+
+
+# ===========================================================================
+# PARE-44 — POST /api/tournaments/<id>/join
+# ===========================================================================
+
+class TestJoinTournament:
+    def test_join_open_tournament_returns_201(self, client):
+        """PARE-44: joining an open tournament returns 201."""
+        t = create_tournament(client).get_json()
+        resp = join_tournament(client, t["id"])
+        assert resp.status_code == 201
+
+    def test_join_response_fields(self, client):
+        """PARE-44: join response has expected fields."""
+        t = create_tournament(client).get_json()
+        entry = join_tournament(client, t["id"]).get_json()
+        assert set(entry.keys()) == {"id", "tournament_id", "name", "best_score", "submitted_at", "joined_at"}
+
+    def test_join_best_score_null(self, client):
+        """PARE-44: best_score is null on initial join."""
+        t = create_tournament(client).get_json()
+        entry = join_tournament(client, t["id"]).get_json()
+        assert entry["best_score"] is None
+
+    def test_join_idempotent_returns_200(self, client):
+        """PARE-44: re-joining returns 200 with same entry."""
+        t = create_tournament(client).get_json()
+        first = join_tournament(client, t["id"], "Alice").get_json()
+        second = join_tournament(client, t["id"], "Alice")
+        assert second.status_code == 200
+        assert second.get_json()["id"] == first["id"]
+
+    def test_join_different_players(self, client):
+        """PARE-44: two different players get distinct entries."""
+        t = create_tournament(client).get_json()
+        e1 = join_tournament(client, t["id"], "Alice").get_json()
+        e2 = join_tournament(client, t["id"], "Bob").get_json()
+        assert e1["id"] != e2["id"]
+        assert e1["name"] == "Alice"
+        assert e2["name"] == "Bob"
+
+    def test_join_not_found_returns_404(self, client):
+        """PARE-44: joining non-existent tournament → 404."""
+        resp = join_tournament(client, 9999)
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_join_completed_tournament_returns_422(self, client):
+        """PARE-44: joining a completed tournament → 422."""
+        # Create tournament with starts_at/ends_at in the past so it can be completed
+        import database as db
+        t_resp = create_tournament(client).get_json()
+        tid = t_resp["id"]
+        # Force status to completed in DB
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='completed' WHERE id=?", (tid,))
+            conn.commit()
+        resp = join_tournament(client, tid)
+        assert resp.status_code == 422
+
+    def test_join_missing_name_returns_400(self, client):
+        """PARE-44: missing name field → 400."""
+        t = create_tournament(client).get_json()
+        resp = client.post(f"/api/tournaments/{t['id']}/join", json={})
+        assert resp.status_code == 400
+
+    def test_join_empty_name_returns_400(self, client):
+        """PARE-44: empty name → 400."""
+        t = create_tournament(client).get_json()
+        resp = client.post(f"/api/tournaments/{t['id']}/join", json={"name": "  "})
+        assert resp.status_code == 400
+
+
+# ===========================================================================
+# PARE-45 — POST /api/tournaments/<id>/score
+# ===========================================================================
+
+class TestSubmitTournamentScore:
+    def _setup_active(self, client):
+        """Create an active tournament and join Alice."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        # Force to active
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        return tid
+
+    def test_submit_score_returns_200(self, client):
+        """PARE-45: valid score submission returns 200."""
+        tid = self._setup_active(client)
+        resp = submit_score(client, tid, "Alice", 1000)
+        assert resp.status_code == 200
+
+    def test_submit_score_updates_best_score(self, client):
+        """PARE-45: best_score is updated after first submission."""
+        tid = self._setup_active(client)
+        entry = submit_score(client, tid, "Alice", 1000).get_json()
+        assert entry["best_score"] == 1000
+
+    def test_submit_higher_score_updates(self, client):
+        """PARE-45: submitting a higher score updates best_score."""
+        tid = self._setup_active(client)
+        submit_score(client, tid, "Alice", 1000)
+        entry = submit_score(client, tid, "Alice", 2000).get_json()
+        assert entry["best_score"] == 2000
+
+    def test_submit_lower_score_no_update(self, client):
+        """PARE-45: submitting a lower score does NOT update best_score."""
+        tid = self._setup_active(client)
+        submit_score(client, tid, "Alice", 2000)
+        entry = submit_score(client, tid, "Alice", 500).get_json()
+        assert entry["best_score"] == 2000
+
+    def test_submit_score_response_fields(self, client):
+        """PARE-45: response has entry fields."""
+        tid = self._setup_active(client)
+        entry = submit_score(client, tid, "Alice", 500).get_json()
+        assert set(entry.keys()) == {"id", "tournament_id", "name", "best_score", "submitted_at", "joined_at"}
+
+    def test_submit_score_not_joined_returns_409(self, client):
+        """PARE-45: player not joined → 409."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        resp = submit_score(client, tid, "Ghost", 500)
+        assert resp.status_code == 409
+
+    def test_submit_score_open_tournament_returns_422(self, client):
+        """PARE-45: submitting to open tournament → 422."""
+        t = create_tournament(client).get_json()
+        join_tournament(client, t["id"], "Alice")
+        resp = submit_score(client, t["id"], "Alice", 500)
+        assert resp.status_code == 422
+
+    def test_submit_score_completed_tournament_returns_422(self, client):
+        """PARE-45: submitting to completed tournament → 422."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        join_tournament(client, tid, "Alice")
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='completed' WHERE id=?", (tid,))
+            conn.commit()
+        resp = submit_score(client, tid, "Alice", 500)
+        assert resp.status_code == 422
+
+    def test_submit_score_negative_returns_422(self, client):
+        """PARE-45: negative score → 422."""
+        tid = self._setup_active(client)
+        resp = submit_score(client, tid, "Alice", -100)
+        assert resp.status_code == 422
+
+    def test_submit_score_zero_returns_422(self, client):
+        """PARE-45: zero score → 422."""
+        tid = self._setup_active(client)
+        resp = submit_score(client, tid, "Alice", 0)
+        assert resp.status_code == 422
+
+    def test_submit_score_bool_returns_422(self, client):
+        """PARE-45: boolean score → 422."""
+        tid = self._setup_active(client)
+        resp = client.post(f"/api/tournaments/{tid}/score", json={"name": "Alice", "score": True})
+        assert resp.status_code == 422
+
+    def test_submit_score_not_found_returns_404(self, client):
+        """PARE-45: non-existent tournament → 404."""
+        resp = submit_score(client, 9999, "Alice", 500)
+        assert resp.status_code == 404
+
+    def test_submit_equal_score_no_update(self, client):
+        """PARE-45: submitting equal score does not increase best_score."""
+        tid = self._setup_active(client)
+        submit_score(client, tid, "Alice", 1000)
+        entry = submit_score(client, tid, "Alice", 1000).get_json()
+        assert entry["best_score"] == 1000
+
+
+# ===========================================================================
+# PARE-46 — GET /api/tournaments/<id> (detail + standings)
+# ===========================================================================
+
+class TestGetTournament:
+    def test_get_not_found_returns_404(self, client):
+        """PARE-46: non-existent tournament → 404."""
+        resp = client.get("/api/tournaments/9999")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_get_response_fields(self, client):
+        """PARE-46: response has top-level fields including standings."""
+        t = create_tournament(client).get_json()
+        data = client.get(f"/api/tournaments/{t['id']}").get_json()
+        assert set(data.keys()) == {"id", "name", "status", "starts_at", "ends_at", "created_at", "standings"}
+
+    def test_get_standings_empty_no_players(self, client):
+        """PARE-46: standings is empty list when no players joined."""
+        t = create_tournament(client).get_json()
+        data = client.get(f"/api/tournaments/{t['id']}").get_json()
+        assert data["standings"] == []
+
+    def test_get_standings_with_players(self, client):
+        """PARE-46: standings includes joined players."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        join_tournament(client, tid, "Bob")
+        submit_score(client, tid, "Alice", 1500)
+        submit_score(client, tid, "Bob", 1200)
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        assert len(data["standings"]) == 2
+
+    def test_get_standings_ordered_by_score_desc(self, client):
+        """PARE-46: standings ordered best_score DESC."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        join_tournament(client, tid, "Bob")
+        submit_score(client, tid, "Alice", 1500)
+        submit_score(client, tid, "Bob", 1200)
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        scores = [s["best_score"] for s in data["standings"] if s["best_score"] is not None]
+        assert scores == sorted(scores, reverse=True)
+        assert data["standings"][0]["name"] == "Alice"
+
+    def test_get_standings_null_scores_last(self, client):
+        """PARE-46: players without scores appear last in standings."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        join_tournament(client, tid, "NoScore")
+        submit_score(client, tid, "Alice", 1000)
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        standings = data["standings"]
+        assert standings[0]["name"] == "Alice"
+        assert standings[-1]["best_score"] is None
+
+    def test_get_standings_rank_field(self, client):
+        """PARE-46: each standing entry has a rank field starting at 1."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        submit_score(client, tid, "Alice", 1000)
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        assert data["standings"][0]["rank"] == 1
+
+    def test_get_standings_entry_fields(self, client):
+        """PARE-46: each standing entry has rank, name, best_score, submitted_at."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        entry = data["standings"][0]
+        assert set(entry.keys()) == {"rank", "name", "best_score", "submitted_at"}
+
+
+# ===========================================================================
+# PARE-47 — POST /api/tournaments/<id>/complete
+# ===========================================================================
+
+class TestCompleteTournament:
+    def _setup_completable(self, client):
+        """Create a tournament whose ends_at is in the past."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        # Backdate starts_at and ends_at to the past
+        with db.get_db() as conn:
+            conn.execute(
+                "UPDATE tournaments SET status='active', starts_at=?, ends_at=? WHERE id=?",
+                (past_ts(7200), past_ts(3600), tid)
+            )
+            conn.commit()
+        return tid
+
+    def test_complete_returns_200(self, client):
+        """PARE-47: completing a past tournament returns 200."""
+        tid = self._setup_completable(client)
+        resp = client.post(f"/api/tournaments/{tid}/complete")
+        assert resp.status_code == 200
+
+    def test_complete_status_is_completed(self, client):
+        """PARE-47: status becomes 'completed' after completing."""
+        tid = self._setup_completable(client)
+        data = client.post(f"/api/tournaments/{tid}/complete").get_json()
+        assert data["status"] == "completed"
+
+    def test_complete_response_includes_standings(self, client):
+        """PARE-47: response includes standings."""
+        tid = self._setup_completable(client)
+        data = client.post(f"/api/tournaments/{tid}/complete").get_json()
+        assert "standings" in data
+
+    def test_complete_not_found_returns_404(self, client):
+        """PARE-47: non-existent tournament → 404."""
+        resp = client.post("/api/tournaments/9999/complete")
+        assert resp.status_code == 404
+
+    def test_complete_before_ends_at_returns_422(self, client):
+        """PARE-47: completing before ends_at → 422."""
+        t = create_tournament(client).get_json()
+        resp = client.post(f"/api/tournaments/{t['id']}/complete")
+        assert resp.status_code == 422
+
+    def test_complete_already_completed_returns_422(self, client):
+        """PARE-47: completing an already completed tournament → 422."""
+        tid = self._setup_completable(client)
+        client.post(f"/api/tournaments/{tid}/complete")
+        resp = client.post(f"/api/tournaments/{tid}/complete")
+        assert resp.status_code == 422
+
+    def test_complete_persists_status(self, client):
+        """PARE-47: completed status persists on subsequent GET."""
+        tid = self._setup_completable(client)
+        client.post(f"/api/tournaments/{tid}/complete")
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        assert data["status"] == "completed"
+
+
+# ===========================================================================
+# PARE-48 — Integration: full tournament lifecycle
+# ===========================================================================
+
+class TestTournamentLifecycle:
+    def test_full_lifecycle(self, client):
+        """PARE-48: full lifecycle open→active→complete with standings."""
+        import database as db
+
+        # 1. Create tournament
+        t = create_tournament(client, name="Season 1").get_json()
+        tid = t["id"]
+        assert t["status"] == "open"
+
+        # 2. Force active (simulate time passing)
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+
+        # 3. Players join
+        join_tournament(client, tid, "Alice")
+        join_tournament(client, tid, "Bob")
+        join_tournament(client, tid, "Carol")
+
+        # 4. Players submit scores
+        submit_score(client, tid, "Alice", 1500)
+        submit_score(client, tid, "Bob", 1200)
+        submit_score(client, tid, "Alice", 900)   # lower — should not update
+
+        # 5. Check standings mid-game
+        detail = client.get(f"/api/tournaments/{tid}").get_json()
+        standings = detail["standings"]
+        assert standings[0]["name"] == "Alice"
+        assert standings[0]["best_score"] == 1500
+        assert standings[1]["name"] == "Bob"
+        assert standings[1]["best_score"] == 1200
+        # Carol has no score — should be last
+        carol = next(s for s in standings if s["name"] == "Carol")
+        assert carol["best_score"] is None
+
+        # 6. Complete tournament
+        with db.get_db() as conn:
+            conn.execute(
+                "UPDATE tournaments SET ends_at=? WHERE id=?",
+                (past_ts(60), tid)
+            )
+            conn.commit()
+        final = client.post(f"/api/tournaments/{tid}/complete").get_json()
+        assert final["status"] == "completed"
+        assert final["standings"][0]["name"] == "Alice"
+
+    def test_list_filter_by_status(self, client):
+        """PARE-48: list endpoint filters work across multiple tournaments."""
+        create_tournament(client, name="Cup A")
+        create_tournament(client, name="Cup B")
+        open_list = client.get("/api/tournaments?status=open").get_json()
+        assert len(open_list) == 2
+        completed_list = client.get("/api/tournaments?status=completed").get_json()
+        assert completed_list == []
+
+    def test_join_active_tournament(self, client):
+        """PARE-48: can join a tournament after it becomes active."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        resp = join_tournament(client, tid, "Late Joiner")
+        assert resp.status_code == 201
+
+    def test_dynamic_status_open_to_active(self, client):
+        """PARE-48: tournament transitions open→active on read when starts_at has passed."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        # Manually set starts_at to the past while keeping status='open'
+        with db.get_db() as conn:
+            conn.execute(
+                "UPDATE tournaments SET starts_at=? WHERE id=?",
+                (past_ts(60), tid)
+            )
+            conn.commit()
+        # Now reading should trigger the transition
+        data = client.get(f"/api/tournaments/{tid}").get_json()
+        assert data["status"] == "active"
+
+    def test_score_does_not_pollute_global_scores(self, client):
+        """PARE-48: tournament scores don't appear in /api/scores."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        with db.get_db() as conn:
+            conn.execute("UPDATE tournaments SET status='active' WHERE id=?", (tid,))
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        submit_score(client, tid, "Alice", 9999)
+        scores = client.get("/api/scores").get_json()
+        assert all(s.get("score") != 9999 for s in scores)
