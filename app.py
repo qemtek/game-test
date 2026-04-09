@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request
+from datetime import datetime, timezone
 import database
 
 app = Flask(__name__)
@@ -147,6 +148,242 @@ def post_score():
         ).fetchone()
 
     return jsonify(dict(row)), 201
+
+
+# ---------------------------------------------------------------------------
+# Tournament helpers
+# ---------------------------------------------------------------------------
+
+def _maybe_activate_tournament(conn, tournament_id, current_status, starts_at):
+    """Lazily transition open -> active if starts_at has passed."""
+    if current_status == 'open':
+        now = datetime.now(timezone.utc).isoformat()
+        if starts_at <= now:
+            conn.execute(
+                "UPDATE tournaments SET status = 'active' WHERE id = ?",
+                (tournament_id,)
+            )
+            conn.commit()
+            return 'active'
+    return current_status
+
+
+def _tournament_row_with_status(conn, row):
+    """Return a dict for a tournament row with dynamic status applied."""
+    d = dict(row)
+    d['status'] = _maybe_activate_tournament(conn, d['id'], d['status'], d['starts_at'])
+    return d
+
+
+def _get_standings(conn, tournament_id):
+    rows = conn.execute('''
+        SELECT name, best_score, submitted_at
+        FROM tournament_entries
+        WHERE tournament_id = ?
+        ORDER BY best_score DESC NULLS LAST
+    ''', (tournament_id,)).fetchall()
+    standings = []
+    for i, row in enumerate(rows):
+        standings.append({
+            "rank": i + 1,
+            "name": row['name'],
+            "best_score": row['best_score'],
+            "submitted_at": row['submitted_at'],
+        })
+    return standings
+
+
+# ---------------------------------------------------------------------------
+# Tournament routes
+# ---------------------------------------------------------------------------
+
+@app.route('/api/tournaments', methods=['POST'])
+def create_tournament():
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "request body must be valid JSON"}), 400
+
+    name = data.get('name')
+    starts_at = data.get('starts_at')
+    ends_at = data.get('ends_at')
+
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "name must be a non-empty string"}), 400
+    if not isinstance(starts_at, str) or not starts_at.strip():
+        return jsonify({"error": "starts_at is required"}), 400
+    if not isinstance(ends_at, str) or not ends_at.strip():
+        return jsonify({"error": "ends_at is required"}), 400
+    if ends_at <= starts_at:
+        return jsonify({"error": "ends_at must be after starts_at"}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    if starts_at <= now:
+        return jsonify({"error": "starts_at must be in the future"}), 400
+
+    created_at = now
+    with database.get_db() as conn:
+        cursor = conn.execute(
+            "INSERT INTO tournaments (name, status, starts_at, ends_at, created_at) VALUES (?, 'open', ?, ?, ?)",
+            (name.strip(), starts_at, ends_at, created_at)
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments WHERE id = ?",
+            (cursor.lastrowid,)
+        ).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route('/api/tournaments', methods=['GET'])
+def list_tournaments():
+    status_filter = request.args.get('status')
+    with database.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments ORDER BY starts_at DESC"
+        ).fetchall()
+        results = []
+        for row in rows:
+            t = _tournament_row_with_status(conn, row)
+            if status_filter is None or t['status'] == status_filter:
+                results.append(t)
+    return jsonify(results)
+
+
+@app.route('/api/tournaments/<int:tournament_id>', methods=['GET'])
+def get_tournament(tournament_id):
+    with database.get_db() as conn:
+        row = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments WHERE id = ?",
+            (tournament_id,)
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "tournament not found"}), 404
+        t = _tournament_row_with_status(conn, row)
+        t['standings'] = _get_standings(conn, tournament_id)
+    return jsonify(t)
+
+
+@app.route('/api/tournaments/<int:tournament_id>/join', methods=['POST'])
+def join_tournament(tournament_id):
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "request body must be valid JSON"}), 400
+
+    name = data.get('name')
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "name must be a non-empty string"}), 400
+    name = name.strip()
+
+    with database.get_db() as conn:
+        row = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments WHERE id = ?",
+            (tournament_id,)
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "tournament not found"}), 404
+
+        t = _tournament_row_with_status(conn, row)
+        if t['status'] == 'completed':
+            return jsonify({"error": "tournament is completed"}), 422
+
+        # Check if already joined (idempotent)
+        existing = conn.execute(
+            "SELECT id, tournament_id, name, best_score, submitted_at, joined_at FROM tournament_entries WHERE tournament_id = ? AND name = ?",
+            (tournament_id, name)
+        ).fetchone()
+        if existing:
+            return jsonify(dict(existing)), 200
+
+        joined_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR IGNORE INTO tournament_entries (tournament_id, name, joined_at) VALUES (?, ?, ?)",
+            (tournament_id, name, joined_at)
+        )
+        conn.commit()
+        entry = conn.execute(
+            "SELECT id, tournament_id, name, best_score, submitted_at, joined_at FROM tournament_entries WHERE tournament_id = ? AND name = ?",
+            (tournament_id, name)
+        ).fetchone()
+    return jsonify(dict(entry)), 201
+
+
+@app.route('/api/tournaments/<int:tournament_id>/score', methods=['POST'])
+def submit_tournament_score(tournament_id):
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "request body must be valid JSON"}), 400
+
+    name = data.get('name')
+    score = data.get('score')
+
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "name must be a non-empty string"}), 400
+    name = name.strip()
+
+    if not isinstance(score, int) or isinstance(score, bool) or score <= 0:
+        return jsonify({"error": "score must be a positive integer"}), 422
+
+    with database.get_db() as conn:
+        row = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments WHERE id = ?",
+            (tournament_id,)
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "tournament not found"}), 404
+
+        t = _tournament_row_with_status(conn, row)
+        if t['status'] != 'active':
+            return jsonify({"error": "tournament is not active"}), 422
+
+        entry = conn.execute(
+            "SELECT id, tournament_id, name, best_score, submitted_at, joined_at FROM tournament_entries WHERE tournament_id = ? AND name = ?",
+            (tournament_id, name)
+        ).fetchone()
+        if entry is None:
+            return jsonify({"error": "player has not joined this tournament"}), 409
+
+        # Only update best_score if the new score is higher
+        if entry['best_score'] is None or score > entry['best_score']:
+            submitted_at = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "UPDATE tournament_entries SET best_score = ?, submitted_at = ? WHERE tournament_id = ? AND name = ?",
+                (score, submitted_at, tournament_id, name)
+            )
+            conn.commit()
+
+        updated = conn.execute(
+            "SELECT id, tournament_id, name, best_score, submitted_at, joined_at FROM tournament_entries WHERE tournament_id = ? AND name = ?",
+            (tournament_id, name)
+        ).fetchone()
+    return jsonify(dict(updated)), 200
+
+
+@app.route('/api/tournaments/<int:tournament_id>/complete', methods=['POST'])
+def complete_tournament(tournament_id):
+    with database.get_db() as conn:
+        row = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments WHERE id = ?",
+            (tournament_id,)
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "tournament not found"}), 404
+
+        t = _tournament_row_with_status(conn, row)
+        if t['status'] == 'completed':
+            return jsonify({"error": "tournament is already completed"}), 422
+
+        now = datetime.now(timezone.utc).isoformat()
+        if now < t['ends_at']:
+            return jsonify({"error": "cannot complete tournament before ends_at"}), 422
+
+        conn.execute(
+            "UPDATE tournaments SET status = 'completed' WHERE id = ?",
+            (tournament_id,)
+        )
+        conn.commit()
+        t['status'] = 'completed'
+        t['standings'] = _get_standings(conn, tournament_id)
+    return jsonify(t)
 
 
 if __name__ == '__main__':
