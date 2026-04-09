@@ -386,6 +386,45 @@ def complete_tournament(tournament_id):
     return jsonify(t)
 
 
+# ---------------------------------------------------------------------------
+# Scoreboard helpers & routes
+# ---------------------------------------------------------------------------
+
+def get_scoreboard_data():
+    """Return scoreboard data dict shared by /api/scoreboard and /scoreboard."""
+    with database.get_db() as conn:
+        # Top-10 global scores
+        score_rows = conn.execute(
+            'SELECT id, name, score, created_at FROM scores ORDER BY score DESC LIMIT 10'
+        ).fetchall()
+        scores = [dict(r) for r in score_rows]
+
+        # First active tournament
+        tournament_rows = conn.execute(
+            'SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments ORDER BY starts_at DESC'
+        ).fetchall()
+        active_tournament = None
+        for row in tournament_rows:
+            t = _tournament_row_with_status(conn, row)
+            if t['status'] == 'active':
+                t['standings'] = _get_standings(conn, t['id'])
+                active_tournament = t
+                break
+
+    return {'scores': scores, 'active_tournament': active_tournament}
+
+
+@app.route('/api/scoreboard', methods=['GET'])
+def api_scoreboard():
+    return jsonify(get_scoreboard_data())
+
+
+@app.route('/scoreboard', methods=['GET'])
+def scoreboard():
+    data = get_scoreboard_data()
+    return render_template('scoreboard.html', **data)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
