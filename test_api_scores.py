@@ -1225,3 +1225,82 @@ class TestTournamentLifecycle:
         submit_score(client, tid, "Alice", 9999)
         scores = client.get("/api/scores").get_json()
         assert all(s.get("score") != 9999 for s in scores)
+
+
+# ===========================================================================
+# PARE-51 — GET /api/scoreboard
+# ===========================================================================
+
+class TestGetApiScoreboard:
+    def test_returns_200(self, client):
+        """PARE-51: GET /api/scoreboard returns 200."""
+        resp = client.get("/api/scoreboard")
+        assert resp.status_code == 200
+
+    def test_scores_field_present(self, client):
+        """PARE-51: response has 'scores' key."""
+        data = client.get("/api/scoreboard").get_json()
+        assert "scores" in data
+
+    def test_active_tournament_null_when_none(self, client):
+        """PARE-51: active_tournament is null when no active tournament exists."""
+        data = client.get("/api/scoreboard").get_json()
+        assert data["active_tournament"] is None
+
+    def test_scores_top_10(self, client):
+        """PARE-51: scores array has at most 10 entries ordered score DESC."""
+        # Insert 15 scores
+        for i in range(15):
+            post_score(client, f"Player{i}", (i + 1) * 100)
+        data = client.get("/api/scoreboard").get_json()
+        scores = data["scores"]
+        assert len(scores) <= 10
+        # Verify ordering
+        for i in range(len(scores) - 1):
+            assert scores[i]["score"] >= scores[i + 1]["score"]
+
+    def test_active_tournament_populated(self, client):
+        """PARE-51: when an active tournament exists, active_tournament has id, name, status, standings."""
+        import database as db
+        t = create_tournament(client).get_json()
+        tid = t["id"]
+        # Force it active
+        with db.get_db() as conn:
+            conn.execute(
+                "UPDATE tournaments SET status='active', starts_at=? WHERE id=?",
+                (past_ts(60), tid),
+            )
+            conn.commit()
+        join_tournament(client, tid, "Alice")
+        data = client.get("/api/scoreboard").get_json()
+        at = data["active_tournament"]
+        assert at is not None
+        assert "id" in at
+        assert "name" in at
+        assert "status" in at
+        assert "standings" in at
+        assert at["status"] == "active"
+
+
+# ===========================================================================
+# PARE-51 — GET /scoreboard (HTML)
+# ===========================================================================
+
+class TestGetScoreboard:
+    def test_returns_200(self, client):
+        """PARE-51: GET /scoreboard returns 200."""
+        resp = client.get("/scoreboard")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-51: content-type is text/html."""
+        resp = client.get("/scoreboard")
+        assert "text/html" in resp.content_type
+
+    def test_contains_scores(self, client):
+        """PARE-51: response body contains score data when scores exist."""
+        post_score(client, "TestPlayer", 4200)
+        resp = client.get("/scoreboard")
+        body = resp.data.decode("utf-8")
+        assert "TestPlayer" in body
+        assert "4200" in body

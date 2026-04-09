@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .scoreboard-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .scoreboard-section {
+            margin-bottom: 2rem;
+        }
+
+        .scoreboard-section h2 {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .filter-row {
+            margin-bottom: 0.75rem;
+        }
+
+        .filter-input {
+            background: #0f172a;
+            border: 1px solid #4ade80;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.75rem;
+            width: 100%;
+            max-width: 300px;
+            outline: none;
+        }
+
+        .filter-input::placeholder {
+            color: #6b7280;
+        }
+
+        .filter-input:focus {
+            border-color: #86efac;
+        }
+
+        .scoreboard-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .scoreboard-table th,
+        .scoreboard-table td {
+            padding: 0.5rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #2d2d4e;
+            font-size: 0.9rem;
+        }
+
+        .scoreboard-table th {
+            color: #6b7280;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .scoreboard-table td {
+            color: #e0e0e0;
+        }
+
+        .scoreboard-table td:first-child {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .refresh-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .tournament-badge {
+            display: inline-block;
+            background: #22c55e22;
+            border: 1px solid #4ade80;
+            color: #4ade80;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            padding: 0.1rem 0.5rem;
+            margin-left: 0.75rem;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scoreboard</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="scoreboard-container">
+
+        <!-- Global Top-10 -->
+        <div class="scoreboard-section">
+            <h2>Global Top 10</h2>
+            <p class="refresh-label">Auto-refreshes every 5 seconds</p>
+            <div class="filter-row">
+                <input
+                    id="filter"
+                    class="filter-input"
+                    type="text"
+                    placeholder="Filter by name..."
+                    oninput="applyFilter()"
+                />
+            </div>
+            <table class="scoreboard-table" id="scores-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Name</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="scores-body">
+                    {% if scores %}
+                        {% for entry in scores %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ entry.name }}</td>
+                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="4" class="empty-state">No scores yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Active Tournament -->
+        <div class="scoreboard-section" id="tournament-section" {% if not active_tournament %}style="display:none"{% endif %}>
+            <h2>
+                Active Tournament
+                {% if active_tournament %}
+                    <span class="tournament-badge">{{ active_tournament.name }}</span>
+                {% endif %}
+            </h2>
+            <table class="scoreboard-table" id="tournament-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Best Score</th>
+                    </tr>
+                </thead>
+                <tbody id="tournament-body">
+                    {% if active_tournament and active_tournament.standings %}
+                        {% for s in active_tournament.standings %}
+                        <tr>
+                            <td>{{ s.rank }}</td>
+                            <td>{{ s.name }}</td>
+                            <td>{{ s.best_score if s.best_score is not none else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="3" class="empty-state">No standings yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Auto-refresh every 5 seconds ---
+        let allScores = [];
+
+        function renderScores(scores) {
+            allScores = scores;
+            applyFilter();
+        }
+
+        function applyFilter() {
+            const filter = document.getElementById('filter').value.toLowerCase().trim();
+            const tbody = document.getElementById('scores-body');
+            const filtered = filter
+                ? allScores.filter(s => s.name.toLowerCase().includes(filter))
+                : allScores;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No scores yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = filtered.map((s, i) =>
+                `<tr>
+                    <td>${i + 1}</td>
+                    <td>${escHtml(s.name)}</td>
+                    <td>${s.score}</td>
+                    <td>${escHtml(s.created_at || '')}</td>
+                </tr>`
+            ).join('');
+        }
+
+        function renderTournament(tournament) {
+            const section = document.getElementById('tournament-section');
+            const tbody = document.getElementById('tournament-body');
+            const heading = section.querySelector('h2');
+
+            if (!tournament) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = '';
+            // Update name badge
+            heading.innerHTML = `Active Tournament <span class="tournament-badge">${escHtml(tournament.name)}</span>`;
+
+            const standings = tournament.standings || [];
+            if (standings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No standings yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = standings.map(s =>
+                `<tr>
+                    <td>${s.rank}</td>
+                    <td>${escHtml(s.name)}</td>
+                    <td>${s.best_score != null ? s.best_score : '—'}</td>
+                </tr>`
+            ).join('');
+        }
+
+        function escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function refresh() {
+            fetch('/api/scoreboard')
+                .then(r => r.json())
+                .then(data => {
+                    renderScores(data.scores || []);
+                    renderTournament(data.active_tournament);
+                })
+                .catch(() => { /* silently ignore network errors */ });
+        }
+
+        // Seed allScores from server-rendered data on first load
+        (function initFromDOM() {
+            const rows = document.querySelectorAll('#scores-body tr[data-skip]');
+            // If server rendered actual data, load from API immediately so allScores is populated
+            refresh();
+        })();
+
+        setInterval(refresh, 5000);
+    </script>
+</body>
+</html>
