@@ -1,0 +1,14 @@
+{
+  "mode": "host",
+  "base_url": "http://localhost:5000",
+  "healthcheck_targets": ["http://localhost:5000/api/health"],
+  "startup_grace_seconds": 0,
+  "migrate_command": null,
+  "seed_command": "python scripts/seed_scoreboard.py",
+  "reset_command": "rm -f game.db && python -c \"import database; database.init_db()\"",
+  "resettable": true,
+  "requires_auth": false,
+  "auth_config_path": null,
+  "db_introspection_command": "sqlite3 game.db .schema",
+  "pare_db_path": "tasks.db"
+}
