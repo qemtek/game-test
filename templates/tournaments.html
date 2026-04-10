@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournaments</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .tournaments-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .tournament-section {
+            margin-bottom: 2rem;
+        }
+
+        .tournament-section h2 {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .tournament-card {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .tournament-card h3 {
+            color: #e0e0e0;
+            font-size: 1rem;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .tournament-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            padding: 0.1rem 0.5rem;
+            text-transform: uppercase;
+            vertical-align: middle;
+            margin-left: 0.5rem;
+        }
+
+        .badge-active {
+            background: #22c55e22;
+            border: 1px solid #4ade80;
+            color: #4ade80;
+        }
+
+        .badge-open {
+            background: #3b82f622;
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+        }
+
+        .badge-completed {
+            background: #6b728022;
+            border: 1px solid #6b7280;
+            color: #6b7280;
+        }
+
+        .tournament-meta {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.75rem;
+        }
+
+        .standings-table th,
+        .standings-table td {
+            padding: 0.4rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #2d2d4e;
+            font-size: 0.85rem;
+        }
+
+        .standings-table th {
+            color: #6b7280;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .standings-table td {
+            color: #e0e0e0;
+        }
+
+        .standings-table td:first-child {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tournaments</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a> &nbsp;|&nbsp; <a href="/scoreboard" class="nav-link">Scoreboard</a></p>
+
+    <div class="tournaments-container">
+
+        {% if active_tournaments %}
+        <div class="tournament-section">
+            <h2>Active Tournaments</h2>
+            {% for t in active_tournaments %}
+            <div class="tournament-card">
+                <h3>
+                    {{ t.name }}
+                    <span class="tournament-badge badge-active">Active</span>
+                </h3>
+                <div class="tournament-meta">
+                    Started: {{ t.starts_at }} &nbsp;|&nbsp; Ends: {{ t.ends_at }}
+                </div>
+                {% if t.standings %}
+                <table class="standings-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Best Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in t.standings %}
+                        <tr class="tournament-row">
+                            <td>{{ s.rank }}</td>
+                            <td>{{ s.name }}</td>
+                            <td>{{ s.best_score if s.best_score is not none else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-state">No participants yet</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if open_tournaments %}
+        <div class="tournament-section">
+            <h2>Upcoming Tournaments</h2>
+            {% for t in open_tournaments %}
+            <div class="tournament-card">
+                <h3>
+                    {{ t.name }}
+                    <span class="tournament-badge badge-open">Open</span>
+                </h3>
+                <div class="tournament-meta">
+                    Starts: {{ t.starts_at }} &nbsp;|&nbsp; Ends: {{ t.ends_at }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if completed_tournaments %}
+        <div class="tournament-section">
+            <h2>Completed Tournaments</h2>
+            {% for t in completed_tournaments %}
+            <div class="tournament-card">
+                <h3>
+                    {{ t.name }}
+                    <span class="tournament-badge badge-completed">Completed</span>
+                </h3>
+                <div class="tournament-meta">
+                    Ended: {{ t.ends_at }}
+                </div>
+                {% if t.standings %}
+                <table class="standings-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Best Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in t.standings %}
+                        <tr class="tournament-row">
+                            <td>{{ s.rank }}</td>
+                            <td>{{ s.name }}</td>
+                            <td>{{ s.best_score if s.best_score is not none else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if not active_tournaments and not open_tournaments and not completed_tournaments %}
+        <p class="empty-state">No tournaments found.</p>
+        {% endif %}
+
+    </div>
+</body>
+</html>
