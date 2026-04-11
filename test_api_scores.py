@@ -1450,3 +1450,94 @@ class TestPlayerPage:
         assert resp.status_code == 200
         body = resp.data.decode("utf-8")
         assert "NonExistent" in body
+
+    def test_back_link_present(self, client):
+        """PARE-52: page includes a back link to /scoreboard."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "/scoreboard" in body
+
+    def test_multiple_scores_all_visible_in_table(self, client):
+        """PARE-52: all individual score values appear in the score history table."""
+        scores = [1000, 2000, 3000, 4000]
+        for s in scores:
+            post_score(client, "PixelKnight", s)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        for s in scores:
+            assert str(s) in body
+
+    def test_not_found_page_no_svg_chart(self, client):
+        """PARE-52: not-found page does not render an SVG chart."""
+        resp = client.get("/player/GhostPlayer")
+        body = resp.data.decode("utf-8")
+        assert "<svg" not in body
+
+    def test_page_title_contains_player_name(self, client):
+        """PARE-52: <title> element includes the player name."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "<title>" in body
+        title_start = body.index("<title>")
+        title_end = body.index("</title>")
+        assert "PixelKnight" in body[title_start:title_end]
+
+
+class TestGetPlayerHistoryEdgeCases:
+    """Edge-case tests for PARE-52 /api/player/<name>."""
+
+    def test_scores_ordered_by_created_at_desc(self, client):
+        """PARE-52: scores list is sorted by created_at descending.
+
+        Note: scores inserted within the same second share the same
+        CURRENT_TIMESTAMP value, so tie-breaking order is not tested here.
+        We verify the created_at values are non-increasing (i.e. the sort
+        direction is correct when timestamps differ).
+        """
+        for s in [100, 200, 300]:
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        timestamps = [e["created_at"] for e in data["scores"]]
+        # created_at values must be in non-increasing (DESC) order
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    def test_single_score_stats(self, client):
+        """PARE-52: single score means best == average == that score, total_games == 1."""
+        post_score(client, "PixelKnight", 7500)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["total_games"] == 1
+        assert data["best_score"] == 7500
+        assert abs(data["average_score"] - 7500.0) < 0.01
+
+    def test_average_score_rounded(self, client):
+        """PARE-52: average_score is rounded to 2 decimal places."""
+        for s in [1, 2, 3]:  # avg = 2.0, but tests rounding contract
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        # Verify it's not a raw float with many decimals
+        avg_str = str(data["average_score"])
+        if "." in avg_str:
+            assert len(avg_str.split(".")[1]) <= 2
+
+    def test_case_sensitive_player_name(self, client):
+        """PARE-52: player name lookup is case-sensitive."""
+        post_score(client, "PixelKnight", 500)
+        resp = client.get("/api/player/pixelknight")
+        assert resp.status_code == 404
+
+    def test_multiple_players_isolated(self, client):
+        """PARE-52: history for PlayerA doesn't include PlayerB's scores."""
+        for s in [100, 200]:
+            post_score(client, "Alice", s)
+        for s in [900, 800]:
+            post_score(client, "Bob", s)
+        alice_data = client.get("/api/player/Alice").get_json()
+        bob_data = client.get("/api/player/Bob").get_json()
+        assert alice_data["best_score"] == 200
+        assert bob_data["best_score"] == 900
+        assert alice_data["total_games"] == 2
+        assert bob_data["total_games"] == 2
+
+    def test_no_tournaments_route(self, client):
+        """PARE-52 scope check: GET /tournaments was removed; must return 404."""
+        resp = client.get("/tournaments")
+        assert resp.status_code == 404

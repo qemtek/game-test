@@ -1,14 +1,14 @@
 {
   "mode": "host",
-  "base_url": "http://localhost:5000",
-  "healthcheck_targets": ["http://localhost:5000/api/health"],
-  "startup_grace_seconds": 0,
+  "base_url": "http://127.0.0.1:5000",
+  "healthcheck_targets": ["http://127.0.0.1:5000/api/health"],
+  "startup_grace_seconds": 3,
   "migrate_command": null,
-  "seed_command": "python scripts/seed_scoreboard.py",
-  "reset_command": "rm -f game.db && python -c \"import database; database.init_db()\"",
+  "seed_command": "DB_PATH=scores.db python3 scripts/seed_scoreboard.py",
+  "reset_command": "bash scripts/reset-and-restart.sh",
   "resettable": true,
   "requires_auth": false,
   "auth_config_path": null,
-  "db_introspection_command": "sqlite3 game.db .schema",
+  "db_introspection_command": "sqlite3 scores.db .schema",
   "pare_db_path": "tasks.db"
 }
