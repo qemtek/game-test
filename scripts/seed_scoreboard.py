@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 # Allow running from repo root or scripts/ directory
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-DB_PATH = os.environ.get('DB_PATH', 'game.db')
+DB_PATH = os.environ.get('DB_PATH', 'scores.db')
 
 PLAYERS = [
     ("PixelKnight", [9800, 7400, 5200]),
