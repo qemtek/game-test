@@ -425,32 +425,6 @@ def scoreboard():
     return render_template('scoreboard.html', **data)
 
 
-@app.route('/tournaments', methods=['GET'])
-def tournaments_page():
-    """HTML tournaments listing page."""
-    with database.get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments ORDER BY starts_at DESC"
-        ).fetchall()
-        active_tournaments = []
-        open_tournaments = []
-        completed_tournaments = []
-        for row in rows:
-            t = _tournament_row_with_status(conn, row)
-            t['standings'] = _get_standings(conn, t['id'])
-            if t['status'] == 'active':
-                active_tournaments.append(t)
-            elif t['status'] == 'open':
-                open_tournaments.append(t)
-            else:
-                completed_tournaments.append(t)
-    return render_template(
-        'tournaments.html',
-        active_tournaments=active_tournaments,
-        open_tournaments=open_tournaments,
-        completed_tournaments=completed_tournaments,
-    )
-
 
 # ---------------------------------------------------------------------------
 # PARE-52 — Individual player history page
