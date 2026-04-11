@@ -425,6 +425,64 @@ def scoreboard():
     return render_template('scoreboard.html', **data)
 
 
+
+# ---------------------------------------------------------------------------
+# PARE-52 — Individual player history page
+# ---------------------------------------------------------------------------
+
+@app.route('/api/player/<name>', methods=['GET'])
+def get_player_history(name):
+    with database.get_db() as conn:
+        scores_rows = conn.execute(
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            (name,)
+        ).fetchall()
+
+        if not scores_rows:
+            return jsonify({"error": "player not found"}), 404
+
+        scores_list = [dict(row) for row in scores_rows]
+        total_games = len(scores_list)
+        best_score = max(r['score'] for r in scores_list)
+        average_score = sum(r['score'] for r in scores_list) / total_games
+
+    return jsonify({
+        "name": name,
+        "scores": scores_list,
+        "total_games": total_games,
+        "best_score": best_score,
+        "average_score": round(average_score, 2),
+    })
+
+
+@app.route('/player/<name>', methods=['GET'])
+def player_page(name):
+    with database.get_db() as conn:
+        scores_rows = conn.execute(
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            (name,)
+        ).fetchall()
+
+        if not scores_rows:
+            return render_template('player.html', player_name=name, not_found=True,
+                                   scores=[], total_games=0, best_score=0, average_score=0)
+
+        scores_list = [dict(row) for row in scores_rows]
+        total_games = len(scores_list)
+        best_score = max(r['score'] for r in scores_list)
+        average_score = round(sum(r['score'] for r in scores_list) / total_games, 2)
+
+    return render_template(
+        'player.html',
+        player_name=name,
+        not_found=False,
+        scores=scores_list,
+        total_games=total_games,
+        best_score=best_score,
+        average_score=average_score,
+    )
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
