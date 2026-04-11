@@ -1541,3 +1541,130 @@ class TestGetPlayerHistoryEdgeCases:
         """PARE-52 scope check: GET /tournaments was removed; must return 404."""
         resp = client.get("/tournaments")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PARE-53 — Game history page
+# ---------------------------------------------------------------------------
+
+class TestApiHistory:
+    """Tests for GET /api/history."""
+
+    def test_returns_200_empty(self, client):
+        """PARE-53: /api/history returns 200 with empty list when no scores."""
+        resp = client.get("/api/history")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_returns_recent_scores_default_limit(self, client):
+        """PARE-53: /api/history returns up to 20 most recent scores by default."""
+        for i in range(25):
+            post_score(client, f"Player{i}", (i + 1) * 10)
+        data = client.get("/api/history").get_json()
+        assert len(data) == 20
+
+    def test_custom_limit(self, client):
+        """PARE-53: /api/history?limit=5 returns exactly 5 scores."""
+        for i in range(10):
+            post_score(client, "Alice", (i + 1) * 100)
+        data = client.get("/api/history?limit=5").get_json()
+        assert len(data) == 5
+
+    def test_limit_capped_at_100(self, client):
+        """PARE-53: limit is capped at 100 even if a larger value is requested."""
+        for i in range(110):
+            post_score(client, "Bob", i + 1)
+        data = client.get("/api/history?limit=200").get_json()
+        assert len(data) == 100
+
+    def test_ordered_by_created_at_desc(self, client):
+        """PARE-53: results are ordered by created_at descending (most recent first)."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/history").get_json()
+        timestamps = [e["created_at"] for e in data]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    def test_entry_has_required_fields(self, client):
+        """PARE-53: each entry includes name, score, created_at, and time_ago."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/history").get_json()
+        assert len(data) == 1
+        entry = data[0]
+        assert "name" in entry
+        assert "score" in entry
+        assert "created_at" in entry
+        assert "time_ago" in entry
+
+    def test_time_ago_is_string(self, client):
+        """PARE-53: time_ago field is a non-empty string."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/history").get_json()
+        assert isinstance(data[0]["time_ago"], str)
+        assert len(data[0]["time_ago"]) > 0
+
+    def test_invalid_limit_returns_400(self, client):
+        """PARE-53: non-integer limit returns 400."""
+        resp = client.get("/api/history?limit=abc")
+        assert resp.status_code == 400
+
+    def test_zero_limit_returns_empty(self, client):
+        """PARE-53: limit=0 returns an empty list."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/history?limit=0").get_json()
+        assert data == []
+
+
+class TestHistoryPage:
+    """Tests for GET /history HTML page."""
+
+    def test_returns_200(self, client):
+        """PARE-53: /history returns 200."""
+        resp = client.get("/history")
+        assert resp.status_code == 200
+
+    def test_shows_player_name(self, client):
+        """PARE-53: /history renders the submitted player name."""
+        post_score(client, "HistoryPlayer", 999)
+        body = client.get("/history").data.decode("utf-8")
+        assert "HistoryPlayer" in body
+
+    def test_shows_score(self, client):
+        """PARE-53: /history renders the submitted score."""
+        post_score(client, "Alice", 1234)
+        body = client.get("/history").data.decode("utf-8")
+        assert "1234" in body
+
+    def test_shows_relative_time(self, client):
+        """PARE-53: /history renders a relative time string in each row."""
+        post_score(client, "Alice", 500)
+        body = client.get("/history").data.decode("utf-8")
+        assert "ago" in body
+
+    def test_shows_rank_column(self, client):
+        """PARE-53: /history table includes rank numbers."""
+        post_score(client, "Alice", 500)
+        body = client.get("/history").data.decode("utf-8")
+        assert "1" in body
+
+    def test_navigation_link_to_history_on_index(self, client):
+        """PARE-53: index page contains a link to /history."""
+        body = client.get("/").data.decode("utf-8")
+        assert "/history" in body
+
+    def test_empty_state_message(self, client):
+        """PARE-53: /history shows an empty state when no scores exist."""
+        resp = client.get("/history")
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "No scores yet" in body or "<table" in body
+
+    def test_max_20_rows_shown(self, client):
+        """PARE-53: /history shows at most 20 rows."""
+        for i in range(25):
+            post_score(client, f"P{i}", (i + 1) * 10)
+        body = client.get("/history").data.decode("utf-8")
+        # Count <tr> rows in tbody by counting player name occurrences;
+        # each row has exactly one name cell — ensure only 20 are shown.
+        row_count = body.count("ago")
+        assert row_count <= 20

@@ -483,6 +483,71 @@ def player_page(name):
     )
 
 
+# ---------------------------------------------------------------------------
+# PARE-53 — Game history page
+# ---------------------------------------------------------------------------
+
+def _time_ago(created_at_str):
+    """Return a human-readable relative time string (e.g. '2 hours ago')."""
+    try:
+        dt = datetime.fromisoformat(created_at_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        diff = int((now - dt).total_seconds())
+        if diff < 60:
+            return f"{diff} second{'s' if diff != 1 else ''} ago"
+        elif diff < 3600:
+            mins = diff // 60
+            return f"{mins} minute{'s' if mins != 1 else ''} ago"
+        elif diff < 86400:
+            hours = diff // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = diff // 86400
+            return f"{days} day{'s' if days != 1 else ''} ago"
+    except Exception:
+        return created_at_str
+
+
+@app.route('/api/history', methods=['GET'])
+def api_history():
+    raw_limit = request.args.get('limit', '20')
+    try:
+        limit = int(raw_limit)
+    except (ValueError, TypeError):
+        return jsonify({"error": "limit must be an integer"}), 400
+    if limit < 0:
+        return jsonify({"error": "limit must be non-negative"}), 400
+    limit = min(limit, 100)
+    with database.get_db() as conn:
+        rows = conn.execute(
+            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC LIMIT ?',
+            (limit,)
+        ).fetchall()
+    results = []
+    for row in rows:
+        entry = dict(row)
+        entry['time_ago'] = _time_ago(entry['created_at'])
+        results.append(entry)
+    return jsonify(results)
+
+
+@app.route('/history', methods=['GET'])
+def history_page():
+    with database.get_db() as conn:
+        rows = conn.execute(
+            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC LIMIT 20',
+        ).fetchall()
+    entries = []
+    for i, row in enumerate(rows):
+        entry = dict(row)
+        entry['rank'] = i + 1
+        entry['time_ago'] = _time_ago(entry['created_at'])
+        entries.append(entry)
+    return render_template('history.html', entries=entries)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
