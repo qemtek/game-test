@@ -522,7 +522,7 @@ def api_history():
     limit = min(limit, 100)
     with database.get_db() as conn:
         rows = conn.execute(
-            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC LIMIT ?',
+            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC, id DESC LIMIT ?',
             (limit,)
         ).fetchall()
     results = []
@@ -537,7 +537,7 @@ def api_history():
 def history_page():
     with database.get_db() as conn:
         rows = conn.execute(
-            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC LIMIT 20',
+            'SELECT id, name, score, created_at FROM scores ORDER BY created_at DESC, id DESC LIMIT 20',
         ).fetchall()
     entries = []
     for i, row in enumerate(rows):
