@@ -425,6 +425,90 @@ def scoreboard():
     return render_template('scoreboard.html', **data)
 
 
+@app.route('/tournaments', methods=['GET'])
+def tournaments_page():
+    """HTML tournaments listing page."""
+    with database.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments ORDER BY starts_at DESC"
+        ).fetchall()
+        active_tournaments = []
+        open_tournaments = []
+        completed_tournaments = []
+        for row in rows:
+            t = _tournament_row_with_status(conn, row)
+            t['standings'] = _get_standings(conn, t['id'])
+            if t['status'] == 'active':
+                active_tournaments.append(t)
+            elif t['status'] == 'open':
+                open_tournaments.append(t)
+            else:
+                completed_tournaments.append(t)
+    return render_template(
+        'tournaments.html',
+        active_tournaments=active_tournaments,
+        open_tournaments=open_tournaments,
+        completed_tournaments=completed_tournaments,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PARE-52 — Individual player history page
+# ---------------------------------------------------------------------------
+
+@app.route('/api/player/<name>', methods=['GET'])
+def get_player_history(name):
+    with database.get_db() as conn:
+        scores_rows = conn.execute(
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            (name,)
+        ).fetchall()
+
+        if not scores_rows:
+            return jsonify({"error": "player not found"}), 404
+
+        scores_list = [dict(row) for row in scores_rows]
+        total_games = len(scores_list)
+        best_score = max(r['score'] for r in scores_list)
+        average_score = sum(r['score'] for r in scores_list) / total_games
+
+    return jsonify({
+        "name": name,
+        "scores": scores_list,
+        "total_games": total_games,
+        "best_score": best_score,
+        "average_score": round(average_score, 2),
+    })
+
+
+@app.route('/player/<name>', methods=['GET'])
+def player_page(name):
+    with database.get_db() as conn:
+        scores_rows = conn.execute(
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            (name,)
+        ).fetchall()
+
+        if not scores_rows:
+            return render_template('player.html', player_name=name, not_found=True,
+                                   scores=[], total_games=0, best_score=0, average_score=0)
+
+        scores_list = [dict(row) for row in scores_rows]
+        total_games = len(scores_list)
+        best_score = max(r['score'] for r in scores_list)
+        average_score = round(sum(r['score'] for r in scores_list) / total_games, 2)
+
+    return render_template(
+        'player.html',
+        player_name=name,
+        not_found=False,
+        scores=scores_list,
+        total_games=total_games,
+        best_score=best_score,
+        average_score=average_score,
+    )
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)

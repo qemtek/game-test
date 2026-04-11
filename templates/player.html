@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ player_name }} — Player History</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .player-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .player-heading {
+            color: #4ade80;
+            font-size: 1.6rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .section-title {
+            color: #4ade80;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-box {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 0.75rem 1.25rem;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            color: #4ade80;
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .scores-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .scores-table th,
+        .scores-table td {
+            padding: 0.5rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #2d2d4e;
+            font-size: 0.9rem;
+        }
+
+        .scores-table th {
+            color: #6b7280;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .scores-table td {
+            color: #e0e0e0;
+        }
+
+        .scores-table td:nth-child(1) {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .chart-container {
+            overflow-x: auto;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+
+        .not-found-msg {
+            color: #6b7280;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="player-heading">{{ player_name }}</h1>
+    <p class="subtitle"><a href="/scoreboard" class="nav-link">← Back to Scoreboard</a></p>
+
+    {% if not_found %}
+        <p class="not-found-msg">No scores found for player <strong>{{ player_name }}</strong>.</p>
+    {% else %}
+    <div class="player-container">
+
+        <!-- Stats Summary -->
+        <div class="section">
+            <h2 class="section-title">Stats Summary</h2>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Total Games</div>
+                    <div class="stat-value">{{ total_games }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Best Score</div>
+                    <div class="stat-value">{{ best_score }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Average Score</div>
+                    <div class="stat-value">{{ average_score }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SVG Bar Chart -->
+        <div class="section">
+            <h2 class="section-title">Score Chart</h2>
+            <div class="chart-container">
+                {% set bar_width = 30 %}
+                {% set bar_gap = 10 %}
+                {% set chart_height = 160 %}
+                {% set label_height = 20 %}
+                {% set max_score = best_score if best_score > 0 else 1 %}
+                {% set svg_width = (scores | length) * (bar_width + bar_gap) + bar_gap %}
+                <svg
+                    width="{{ svg_width }}"
+                    height="{{ chart_height + label_height }}"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-label="Score bar chart for {{ player_name }}"
+                >
+                    {% for entry in scores | reverse %}
+                    {% set bar_height = ((entry.score / max_score) * (chart_height - 30)) | int %}
+                    {% set bar_height = [bar_height, 4] | max %}
+                    {% set x = loop.index0 * (bar_width + bar_gap) + bar_gap %}
+                    {% set y = chart_height - bar_height %}
+                    <rect
+                        x="{{ x }}"
+                        y="{{ y }}"
+                        width="{{ bar_width }}"
+                        height="{{ bar_height }}"
+                        fill="#4ade80"
+                        rx="2"
+                    />
+                    <text
+                        x="{{ x + bar_width // 2 }}"
+                        y="{{ y - 4 }}"
+                        text-anchor="middle"
+                        fill="#e0e0e0"
+                        font-size="10"
+                        font-family="monospace"
+                    >{{ entry.score }}</text>
+                    {% endfor %}
+                </svg>
+            </div>
+        </div>
+
+        <!-- Score History Table -->
+        <div class="section">
+            <h2 class="section-title">Score History</h2>
+            <table class="scores-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if scores %}
+                        {% for entry in scores %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="3" class="empty-state">No scores yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+    {% endif %}
+</body>
+</html>

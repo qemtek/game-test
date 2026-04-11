@@ -1304,3 +1304,149 @@ class TestGetScoreboard:
         body = resp.data.decode("utf-8")
         assert "TestPlayer" in body
         assert "4200" in body
+
+
+# ===========================================================================
+# PARE-52 — GET /api/player/<name> and GET /player/<name>
+# ===========================================================================
+
+class TestGetPlayerHistory:
+    """Tests for GET /api/player/<name> — individual player history JSON."""
+
+    def test_existing_player_returns_200(self, client):
+        """PARE-52: known player returns 200."""
+        post_score(client, "PixelKnight", 500)
+        resp = client.get("/api/player/PixelKnight")
+        assert resp.status_code == 200
+
+    def test_nonexistent_player_returns_404(self, client):
+        """PARE-52: /api/player/NonExistent returns 404."""
+        resp = client.get("/api/player/NonExistent")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_response_shape(self, client):
+        """PARE-52: response has name, scores, total_games, best_score, average_score."""
+        post_score(client, "PixelKnight", 300)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert set(data.keys()) == {"name", "scores", "total_games", "best_score", "average_score"}
+
+    def test_name_matches(self, client):
+        """PARE-52: returned name matches the queried player."""
+        post_score(client, "PixelKnight", 300)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["name"] == "PixelKnight"
+
+    def test_scores_is_list(self, client):
+        """PARE-52: scores field is a list."""
+        post_score(client, "PixelKnight", 300)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert isinstance(data["scores"], list)
+
+    def test_scores_entry_fields(self, client):
+        """PARE-52: each score entry has score and created_at."""
+        post_score(client, "PixelKnight", 300)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert len(data["scores"]) == 1
+        assert set(data["scores"][0].keys()) == {"score", "created_at"}
+
+    def test_all_scores_returned(self, client):
+        """PARE-52: all scores for the player are returned (not just best)."""
+        for s in [100, 200, 300]:
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["total_games"] == 3
+        assert len(data["scores"]) == 3
+
+    def test_best_score_correct(self, client):
+        """PARE-52: best_score is the highest score."""
+        for s in [100, 500, 300]:
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["best_score"] == 500
+
+    def test_average_score_correct(self, client):
+        """PARE-52: average_score is the mean of all scores."""
+        for s in [100, 200, 300]:
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert abs(data["average_score"] - 200.0) < 0.01
+
+    def test_total_games_correct(self, client):
+        """PARE-52: total_games equals number of score entries."""
+        for s in [100, 200]:
+            post_score(client, "PixelKnight", s)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["total_games"] == 2
+
+    def test_only_own_scores_returned(self, client):
+        """PARE-52: scores from other players do not appear."""
+        post_score(client, "PixelKnight", 300)
+        post_score(client, "OtherPlayer", 999)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["total_games"] == 1
+        assert data["best_score"] == 300
+
+    def test_returns_json_content_type(self, client):
+        """PARE-52: Content-Type is application/json."""
+        post_score(client, "PixelKnight", 100)
+        resp = client.get("/api/player/PixelKnight")
+        assert "application/json" in resp.content_type
+
+
+class TestPlayerPage:
+    """Tests for GET /player/<name> — HTML player history page."""
+
+    def test_existing_player_returns_200(self, client):
+        """PARE-52: /player/PixelKnight returns 200 when player exists."""
+        post_score(client, "PixelKnight", 500)
+        resp = client.get("/player/PixelKnight")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-52: content-type is text/html."""
+        post_score(client, "PixelKnight", 500)
+        resp = client.get("/player/PixelKnight")
+        assert "text/html" in resp.content_type
+
+    def test_contains_player_name_heading(self, client):
+        """PARE-52: page contains player name heading."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "PixelKnight" in body
+
+    def test_contains_score_history(self, client):
+        """PARE-52: page contains score history entries."""
+        post_score(client, "PixelKnight", 750)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "750" in body
+
+    def test_contains_svg_chart(self, client):
+        """PARE-52: page contains an SVG element for the bar chart."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "<svg" in body
+
+    def test_svg_has_bars(self, client):
+        """PARE-52: SVG contains one rect per score entry."""
+        for s in [100, 200, 300]:
+            post_score(client, "PixelKnight", s)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        # 3 bars means 3 <rect elements
+        assert body.count("<rect") == 3
+
+    def test_contains_stats_summary(self, client):
+        """PARE-52: page contains total games, best score, average score."""
+        for s in [100, 200, 300]:
+            post_score(client, "PixelKnight", s)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "Total Games" in body or "total" in body.lower()
+        assert "Best Score" in body or "best" in body.lower()
+        assert "Average" in body or "average" in body.lower()
+
+    def test_nonexistent_player_still_200(self, client):
+        """PARE-52: /player/NonExistent returns 200 with not-found message."""
+        resp = client.get("/player/NonExistent")
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "NonExistent" in body
