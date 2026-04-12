@@ -1872,3 +1872,109 @@ class TestAboutPageEdgeCases:
         """PARE-54: POST /api/about is not a valid endpoint — expect 405."""
         resp = client.post("/api/about", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-58 — /api/badges and /badges
+# ---------------------------------------------------------------------------
+
+class TestApiBadges:
+    """PARE-58: GET /api/badges returns badge assignments."""
+
+    def test_empty_when_no_scores(self, client):
+        resp = client.get("/api/badges")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_gold_threshold(self, client):
+        post_score(client, "Alice", 8000)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["player"] == "Alice"
+        assert data[0]["badge"] == "gold"
+        assert data[0]["best_score"] == 8000
+
+    def test_silver_threshold(self, client):
+        post_score(client, "Bob", 5000)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        assert any(d["badge"] == "silver" and d["player"] == "Bob" for d in data)
+
+    def test_bronze_threshold(self, client):
+        post_score(client, "Carol", 2000)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        assert any(d["badge"] == "bronze" and d["player"] == "Carol" for d in data)
+
+    def test_below_threshold_excluded(self, client):
+        post_score(client, "Dave", 1999)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        assert all(d["player"] != "Dave" for d in data)
+
+    def test_best_score_used(self, client):
+        """Multiple scores — badge based on max."""
+        post_score(client, "Eve", 1000)
+        post_score(client, "Eve", 9000)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        eve = next(d for d in data if d["player"] == "Eve")
+        assert eve["badge"] == "gold"
+        assert eve["best_score"] == 9000
+
+    def test_multiple_tiers(self, client):
+        post_score(client, "Gold", 8500)
+        post_score(client, "Silver", 6000)
+        post_score(client, "Bronze", 3000)
+        post_score(client, "None", 100)
+        resp = client.get("/api/badges")
+        data = resp.get_json()
+        players = {d["player"]: d["badge"] for d in data}
+        assert players["Gold"] == "gold"
+        assert players["Silver"] == "silver"
+        assert players["Bronze"] == "bronze"
+        assert "None" not in players
+
+    def test_response_fields(self, client):
+        post_score(client, "Felix", 5500)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert set(data[0].keys()) == {"player", "badge", "best_score"}
+
+
+class TestBadgesPage:
+    """PARE-58: GET /badges HTML page."""
+
+    def test_returns_200(self, client):
+        resp = client.get("/badges")
+        assert resp.status_code == 200
+
+    def test_contains_summary_counts(self, client):
+        post_score(client, "G1", 8001)
+        post_score(client, "S1", 5001)
+        post_score(client, "B1", 2001)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "1 Gold" in body
+        assert "1 Silver" in body
+        assert "1 Bronze" in body
+
+    def test_badge_grid_shows_players(self, client):
+        post_score(client, "Hero", 9000)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Hero" in body
+
+    def test_gold_silver_bronze_elements(self, client):
+        post_score(client, "A", 8000)
+        post_score(client, "B", 5000)
+        post_score(client, "C", 2000)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "gold" in body
+        assert "silver" in body
+        assert "bronze" in body
+
+    def test_empty_state_when_no_badges(self, client):
+        body = client.get("/badges").data.decode("utf-8")
+        assert "0 Gold" in body
+        assert "0 Silver" in body
+        assert "0 Bronze" in body

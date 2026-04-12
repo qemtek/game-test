@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard Badges</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .badges-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .badge-summary {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .badge-count {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .badge-icon {
+            width: 1.4rem;
+            height: 1.4rem;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .badge-icon.gold   { background: #fbbf24; box-shadow: 0 0 6px #fbbf2488; }
+        .badge-icon.silver { background: #94a3b8; box-shadow: 0 0 6px #94a3b888; }
+        .badge-icon.bronze { background: #b45309; box-shadow: 0 0 6px #b4530988; }
+
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .badge-card {
+            border: 1px solid #2d2d4e;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: #0f172a;
+        }
+
+        .badge-card .badge-icon {
+            width: 2rem;
+            height: 2rem;
+            flex-shrink: 0;
+        }
+
+        .badge-card .badge-info {
+            min-width: 0;
+        }
+
+        .badge-card .badge-player {
+            color: #e0e0e0;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .badge-card .badge-score {
+            color: #6b7280;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            margin-top: 0.2rem;
+        }
+
+        .badge-card.gold   { border-color: #fbbf2444; }
+        .badge-card.silver { border-color: #94a3b844; }
+        .badge-card.bronze { border-color: #b4530944; }
+
+        .section-title {
+            color: #4ade80;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin: 1.5rem 0 0.75rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.4rem;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            font-size: 0.85rem;
+            padding: 0.5rem 0;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover { color: #86efac; }
+    </style>
+</head>
+<body>
+    <h1>Badges</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="badges-container">
+
+        <!-- Summary -->
+        <div class="badge-summary">
+            <div class="badge-count">
+                <span class="badge-icon gold"></span>
+                <span>{{ gold_count }} Gold</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon silver"></span>
+                <span>{{ silver_count }} Silver</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon bronze"></span>
+                <span>{{ bronze_count }} Bronze</span>
+            </div>
+        </div>
+
+        {% for tier, label in [('gold', 'Gold'), ('silver', 'Silver'), ('bronze', 'Bronze')] %}
+        {% set tier_badges = badges | selectattr('badge', 'equalto', tier) | list %}
+        <div class="section-title">{{ label }}</div>
+        {% if tier_badges %}
+        <div class="badge-grid">
+            {% for b in tier_badges %}
+            <div class="badge-card {{ tier }}">
+                <span class="badge-icon {{ tier }}"></span>
+                <div class="badge-info">
+                    <div class="badge-player">{{ b.player }}</div>
+                    <div class="badge-score">Best: {{ b.best_score }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No {{ label | lower }} badge holders yet</p>
+        {% endif %}
+        {% endfor %}
+
+    </div>
+</body>
+</html>
