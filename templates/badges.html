@@ -6,6 +6,12 @@
     <title>Badges</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        /* Dark theme — matches existing app */
+        body {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+
         .badges-container {
             width: 100%;
             max-width: 800px;
@@ -40,30 +46,35 @@
             color: #e0e0e0;
         }
 
-        .badge-icon {
-            font-size: 1.4rem;
+        /* Colored circle badge icons using exact spec hex values */
+        .badge-circle {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
 
-        .badge-icon.gold {
-            color: #fbbf24;
+        .badge-circle.gold {
+            background-color: #FFD700;
         }
 
-        .badge-icon.silver {
-            color: #9ca3af;
+        .badge-circle.silver {
+            background-color: #C0C0C0;
         }
 
-        .badge-icon.bronze {
-            color: #b45309;
+        .badge-circle.bronze {
+            background-color: #CD7F32;
         }
 
         .badge-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1rem;
         }
 
         .badge-card {
-            background: #0f172a;
+            background-color: #0f172a;
             border: 1px solid #2d2d4e;
             padding: 1rem 1.25rem;
             display: flex;
@@ -73,8 +84,10 @@
             text-align: center;
         }
 
-        .badge-card .badge-icon {
-            font-size: 2rem;
+        .badge-card .badge-circle-large {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
         }
 
         .badge-card .player-name {
@@ -84,21 +97,40 @@
             word-break: break-all;
         }
 
+        .badge-card .badge-label {
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
         .badge-card .player-score {
             color: #6b7280;
             font-size: 0.8rem;
         }
 
         .badge-card.gold {
-            border-color: #fbbf24;
+            border-color: #FFD700;
+        }
+
+        .badge-card.gold .badge-label {
+            color: #FFD700;
         }
 
         .badge-card.silver {
-            border-color: #9ca3af;
+            border-color: #C0C0C0;
+        }
+
+        .badge-card.silver .badge-label {
+            color: #C0C0C0;
         }
 
         .badge-card.bronze {
-            border-color: #b45309;
+            border-color: #CD7F32;
+        }
+
+        .badge-card.bronze .badge-label {
+            color: #CD7F32;
         }
 
         .empty-state {
@@ -129,15 +161,15 @@
             <h2>Badge Summary</h2>
             <div class="badge-summary">
                 <div class="badge-summary-item">
-                    <span class="badge-icon gold">🥇</span>
+                    <span class="badge-circle gold"></span>
                     <span>{{ gold_count }} Gold</span>
                 </div>
                 <div class="badge-summary-item">
-                    <span class="badge-icon silver">🥈</span>
+                    <span class="badge-circle silver"></span>
                     <span>{{ silver_count }} Silver</span>
                 </div>
                 <div class="badge-summary-item">
-                    <span class="badge-icon bronze">🥉</span>
+                    <span class="badge-circle bronze"></span>
                     <span>{{ bronze_count }} Bronze</span>
                 </div>
             </div>
@@ -149,13 +181,8 @@
             <div class="badge-grid">
                 {% for entry in badges %}
                 <div class="badge-card {{ entry.badge }}">
-                    {% if entry.badge == 'gold' %}
-                    <span class="badge-icon gold">🥇</span>
-                    {% elif entry.badge == 'silver' %}
-                    <span class="badge-icon silver">🥈</span>
-                    {% else %}
-                    <span class="badge-icon bronze">🥉</span>
-                    {% endif %}
+                    <span class="badge-circle badge-circle-large {{ entry.badge }}"></span>
+                    <span class="badge-label">{{ entry.badge }}</span>
                     <span class="player-name">{{ entry.player }}</span>
                     <span class="player-score">{{ entry.best_score }} pts</span>
                 </div>
