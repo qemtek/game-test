@@ -643,6 +643,48 @@ def badges_page():
     )
 
 
+# ---------------------------------------------------------------------------
+# PARE-67 — Player achievements system
+# ---------------------------------------------------------------------------
+
+MILESTONES = [
+    ("First Blood", lambda total, best: total >= 1),
+    ("Veteran",     lambda total, best: total >= 10),
+    ("Champion",    lambda total, best: best >= 9000),
+]
+
+
+def _get_achievements_data():
+    """Return list of {player, achievements, total_scores} dicts."""
+    with database.get_db() as conn:
+        rows = conn.execute(
+            'SELECT name, COUNT(*) as total, MAX(score) as best FROM scores GROUP BY name'
+        ).fetchall()
+    result = []
+    for row in rows:
+        earned = [name for name, check in MILESTONES if check(row['total'], row['best'])]
+        result.append({
+            'player': row['name'],
+            'achievements': earned,
+            'total_scores': row['total'],
+        })
+    return result
+
+
+@app.route('/api/achievements', methods=['GET'])
+def api_achievements():
+    """Return JSON array of {player, achievements, total_scores}."""
+    return jsonify(_get_achievements_data())
+
+
+@app.route('/achievements', methods=['GET'])
+def achievements_page():
+    """HTML table of players with checkmark icons for earned achievements."""
+    data = _get_achievements_data()
+    milestone_names = [name for name, _ in MILESTONES]
+    return render_template('achievements.html', players=data, milestones=milestone_names)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)

@@ -2041,3 +2041,150 @@ class TestBadgesPage:
         """PARE-61: POST /api/badges is not a valid endpoint — expect 405."""
         resp = client.post("/api/badges", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-67 — Player achievements system
+# ---------------------------------------------------------------------------
+
+class TestApiAchievements:
+    """Tests for GET /api/achievements [PARE-67]."""
+
+    def test_returns_200(self, client):
+        """PARE-67: /api/achievements returns HTTP 200."""
+        resp = client.get("/api/achievements")
+        assert resp.status_code == 200
+
+    def test_empty_db_returns_empty_list(self, client):
+        """PARE-67: No scores -> empty array."""
+        data = client.get("/api/achievements").get_json()
+        assert data == []
+
+    def test_response_entry_fields(self, client):
+        """PARE-67: each entry has player, achievements, total_scores."""
+        post_score(client, "Alice", 100)
+        data = client.get("/api/achievements").get_json()
+        assert len(data) == 1
+        assert set(data[0].keys()) == {"player", "achievements", "total_scores"}
+
+    def test_first_blood_milestone(self, client):
+        """PARE-67: 1+ scores earns First Blood."""
+        post_score(client, "Alice", 100)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "First Blood" in alice["achievements"]
+
+    def test_veteran_milestone(self, client):
+        """PARE-67: 10+ scores earns Veteran."""
+        for i in range(10):
+            post_score(client, "Alice", 100)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "Veteran" in alice["achievements"]
+
+    def test_veteran_requires_10(self, client):
+        """PARE-67: 9 scores do NOT earn Veteran."""
+        for i in range(9):
+            post_score(client, "Alice", 100)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "Veteran" not in alice["achievements"]
+
+    def test_champion_milestone(self, client):
+        """PARE-67: score >= 9000 earns Champion."""
+        post_score(client, "Alice", 9000)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "Champion" in alice["achievements"]
+
+    def test_champion_requires_9000(self, client):
+        """PARE-67: score of 8999 does NOT earn Champion."""
+        post_score(client, "Alice", 8999)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "Champion" not in alice["achievements"]
+
+    def test_all_milestones_earned(self, client):
+        """PARE-67: player with 10+ scores and best >= 9000 earns all milestones."""
+        for i in range(9):
+            post_score(client, "Alice", 100)
+        post_score(client, "Alice", 9000)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert "First Blood" in alice["achievements"]
+        assert "Veteran" in alice["achievements"]
+        assert "Champion" in alice["achievements"]
+
+    def test_total_scores_correct(self, client):
+        """PARE-67: total_scores reflects score count per player."""
+        for _ in range(3):
+            post_score(client, "Alice", 500)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["total_scores"] == 3
+
+    def test_player_no_scores_not_shown(self, client):
+        """PARE-67: players with no scores don't appear."""
+        data = client.get("/api/achievements").get_json()
+        assert data == []
+
+    def test_multiple_players_isolated(self, client):
+        """PARE-67: each player's achievements are independent."""
+        post_score(client, "Alice", 9000)
+        for _ in range(10):
+            post_score(client, "Bob", 100)
+        data = client.get("/api/achievements").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        bob = next(d for d in data if d["player"] == "Bob")
+        assert "Champion" in alice["achievements"]
+        assert "Champion" not in bob["achievements"]
+        assert "Veteran" in bob["achievements"]
+        assert "Veteran" not in alice["achievements"]
+
+
+class TestAchievementsPage:
+    """Tests for GET /achievements HTML page [PARE-67]."""
+
+    def test_returns_200(self, client):
+        """PARE-67: /achievements returns HTTP 200."""
+        resp = client.get("/achievements")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-67: content-type is text/html."""
+        resp = client.get("/achievements")
+        assert "text/html" in resp.content_type
+
+    def test_has_title(self, client):
+        """PARE-67: /achievements page has a <title> tag."""
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_has_back_link(self, client):
+        """PARE-67: /achievements page has a link back to home."""
+        body = client.get("/achievements").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_shows_milestone_columns(self, client):
+        """PARE-67: table headers include all milestone names."""
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "First Blood" in body
+        assert "Veteran" in body
+        assert "Champion" in body
+
+    def test_shows_player_row(self, client):
+        """PARE-67: player with a score appears in the table."""
+        post_score(client, "HeroPlayer", 500)
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "HeroPlayer" in body
+
+    def test_checkmark_for_earned_achievement(self, client):
+        """PARE-67: checkmark character present for earned milestone."""
+        post_score(client, "Alice", 100)
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "\u2713" in body or "&#10003;" in body or "checkmark" in body
+
+    def test_empty_state_no_players(self, client):
+        """PARE-67: /achievements shows empty state when no players."""
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "No players" in body or "no players" in body or "<table" not in body
