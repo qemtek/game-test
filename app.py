@@ -584,6 +584,67 @@ def about_page():
     return render_template('about.html', **data)
 
 
+# ---------------------------------------------------------------------------
+# PARE-59 — Leaderboard badge system
+# ---------------------------------------------------------------------------
+
+GOLD_THRESHOLD = 8000
+SILVER_THRESHOLD = 5000
+BRONZE_THRESHOLD = 2000
+
+
+def _assign_badge(best_score):
+    """Return badge string for a score, or None if below bronze threshold."""
+    if best_score >= GOLD_THRESHOLD:
+        return 'gold'
+    elif best_score >= SILVER_THRESHOLD:
+        return 'silver'
+    elif best_score >= BRONZE_THRESHOLD:
+        return 'bronze'
+    return None
+
+
+def _get_badges_data():
+    """Return list of {player, badge, best_score} for players with a badge."""
+    with database.get_db() as conn:
+        rows = conn.execute(
+            'SELECT name, MAX(score) as best_score FROM scores GROUP BY name'
+        ).fetchall()
+    badges = []
+    for row in rows:
+        badge = _assign_badge(row['best_score'])
+        if badge is not None:
+            badges.append({
+                'player': row['name'],
+                'badge': badge,
+                'best_score': row['best_score'],
+            })
+    # Sort: gold first, then silver, then bronze; ties by best_score desc
+    order = {'gold': 0, 'silver': 1, 'bronze': 2}
+    badges.sort(key=lambda x: (order[x['badge']], -x['best_score']))
+    return badges
+
+
+@app.route('/api/badges', methods=['GET'])
+def api_badges():
+    return jsonify(_get_badges_data())
+
+
+@app.route('/badges', methods=['GET'])
+def badges_page():
+    badges = _get_badges_data()
+    gold_count = sum(1 for b in badges if b['badge'] == 'gold')
+    silver_count = sum(1 for b in badges if b['badge'] == 'silver')
+    bronze_count = sum(1 for b in badges if b['badge'] == 'bronze')
+    return render_template(
+        'badges.html',
+        badges=badges,
+        gold_count=gold_count,
+        silver_count=silver_count,
+        bronze_count=bronze_count,
+    )
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)

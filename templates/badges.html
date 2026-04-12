@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badges</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .badges-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .badge-summary {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .badge-count {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .badge-icon {
+            font-size: 1.4rem;
+            display: inline-block;
+        }
+
+        .badge-icon.gold   { color: #fbbf24; }
+        .badge-icon.silver { color: #94a3b8; }
+        .badge-icon.bronze { color: #b45309; }
+
+        .badges-section {
+            margin-bottom: 2rem;
+        }
+
+        .badges-section h2 {
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .badges-section h2.gold-heading   { color: #fbbf24; }
+        .badges-section h2.silver-heading { color: #94a3b8; }
+        .badges-section h2.bronze-heading { color: #b45309; }
+
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .badge-card {
+            border: 1px solid #2d2d4e;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            background: #0f172a;
+        }
+
+        .badge-card.gold   { border-color: #fbbf24; }
+        .badge-card.silver { border-color: #94a3b8; }
+        .badge-card.bronze { border-color: #b45309; }
+
+        .badge-card .badge-icon {
+            font-size: 2.5rem;
+        }
+
+        .badge-card .player-name {
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+
+        .badge-card .player-score {
+            color: #6b7280;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            padding: 1rem 0;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Badges</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="badges-container">
+
+        <!-- Summary counts -->
+        <div class="badge-summary">
+            <div class="badge-count">
+                <span class="badge-icon gold">🥇</span>
+                <span>{{ gold_count }} Gold</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon silver">🥈</span>
+                <span>{{ silver_count }} Silver</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon bronze">🥉</span>
+                <span>{{ bronze_count }} Bronze</span>
+            </div>
+        </div>
+
+        <!-- Gold -->
+        <div class="badges-section">
+            <h2 class="gold-heading">🥇 Gold — 8000+</h2>
+            {% set gold_badges = badges | selectattr('badge', 'equalto', 'gold') | list %}
+            {% if gold_badges %}
+            <div class="badge-grid">
+                {% for b in gold_badges %}
+                <div class="badge-card gold">
+                    <span class="badge-icon gold">🥇</span>
+                    <span class="player-name">{{ b.player }}</span>
+                    <span class="player-score">{{ b.best_score }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No gold badge holders yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Silver -->
+        <div class="badges-section">
+            <h2 class="silver-heading">🥈 Silver — 5000–7999</h2>
+            {% set silver_badges = badges | selectattr('badge', 'equalto', 'silver') | list %}
+            {% if silver_badges %}
+            <div class="badge-grid">
+                {% for b in silver_badges %}
+                <div class="badge-card silver">
+                    <span class="badge-icon silver">🥈</span>
+                    <span class="player-name">{{ b.player }}</span>
+                    <span class="player-score">{{ b.best_score }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No silver badge holders yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Bronze -->
+        <div class="badges-section">
+            <h2 class="bronze-heading">🥉 Bronze — 2000–4999</h2>
+            {% set bronze_badges = badges | selectattr('badge', 'equalto', 'bronze') | list %}
+            {% if bronze_badges %}
+            <div class="badge-grid">
+                {% for b in bronze_badges %}
+                <div class="badge-card bronze">
+                    <span class="badge-icon bronze">🥉</span>
+                    <span class="player-name">{{ b.player }}</span>
+                    <span class="player-score">{{ b.best_score }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No bronze badge holders yet.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</body>
+</html>
