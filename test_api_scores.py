@@ -2068,3 +2068,56 @@ class TestApiBadgesSortOrder:
         badge_order = [b["badge"] for b in data]
         # Gold (8000) > Silver (5000) > Bronze (2000) by score descending
         assert badge_order == ["gold", "silver", "bronze"]
+
+    def test_sort_order_with_multiple_same_badge(self, client):
+        """PARE-65: Multiple players with same badge tier are still sorted by score descending."""
+        client.post("/api/scores", json={"name": "Gold1", "score": 8500})
+        client.post("/api/scores", json={"name": "Gold2", "score": 9500})
+        client.post("/api/scores", json={"name": "Silver1", "score": 5000})
+        data = client.get("/api/badges").get_json()
+        scores = [b["best_score"] for b in data]
+        assert scores == sorted(scores, reverse=True)
+        # Gold2 (9500) should be first
+        assert data[0]["player"] == "Gold2"
+        assert data[1]["player"] == "Gold1"
+
+    def test_sort_order_single_player(self, client):
+        """PARE-65: Single badged player is returned correctly sorted."""
+        client.post("/api/scores", json={"name": "OnlyOne", "score": 7000})
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert data[0]["player"] == "OnlyOne"
+        assert data[0]["badge"] == "silver"
+
+    def test_sort_excludes_below_threshold(self, client):
+        """PARE-65: Players below 2000 are excluded and sort is unaffected."""
+        client.post("/api/scores", json={"name": "NoBadge", "score": 100})
+        client.post("/api/scores", json={"name": "HasBadge", "score": 3000})
+        data = client.get("/api/badges").get_json()
+        players = [b["player"] for b in data]
+        assert "NoBadge" not in players
+        assert "HasBadge" in players
+
+    def test_best_score_used_for_player_with_multiple_scores(self, client):
+        """PARE-65: Player's best score determines badge tier and sort position."""
+        # Player has one low score and one high score — best_score should be used
+        client.post("/api/scores", json={"name": "MultiScore", "score": 1000})
+        client.post("/api/scores", json={"name": "MultiScore", "score": 8500})
+        client.post("/api/scores", json={"name": "Rival", "score": 6000})
+        data = client.get("/api/badges").get_json()
+        players = [b["player"] for b in data]
+        assert players[0] == "MultiScore"
+        multi = next(b for b in data if b["player"] == "MultiScore")
+        assert multi["badge"] == "gold"
+        assert multi["best_score"] == 8500
+
+    def test_sort_stability_at_boundary_scores(self, client):
+        """PARE-65: Boundary scores (2000, 5000, 8000) are correctly sorted."""
+        client.post("/api/scores", json={"name": "BronzeBoundary", "score": 2000})
+        client.post("/api/scores", json={"name": "SilverBoundary", "score": 5000})
+        client.post("/api/scores", json={"name": "GoldBoundary", "score": 8000})
+        data = client.get("/api/badges").get_json()
+        scores = [b["best_score"] for b in data]
+        assert scores == [8000, 5000, 2000]
+        badges = [b["badge"] for b in data]
+        assert badges == ["gold", "silver", "bronze"]
