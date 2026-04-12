@@ -1668,3 +1668,207 @@ class TestHistoryPage:
         # each row has exactly one name cell — ensure only 20 are shown.
         row_count = body.count("ago")
         assert row_count <= 20
+
+
+# ---------------------------------------------------------------------------
+# PARE-54 — About API and page tests
+# ---------------------------------------------------------------------------
+
+class TestAboutAPI:
+    """Tests for GET /api/about."""
+
+    def test_returns_200(self, client):
+        """PARE-54: /api/about returns 200."""
+        resp = client.get("/api/about")
+        assert resp.status_code == 200
+
+    def test_json_shape(self, client):
+        """PARE-54: /api/about returns correct JSON keys."""
+        data = client.get("/api/about").get_json()
+        assert "name" in data
+        assert "version" in data
+        assert "total_players" in data
+        assert "total_scores" in data
+        assert "total_tournaments" in data
+
+    def test_app_name_and_version(self, client):
+        """PARE-54: /api/about returns correct name and version."""
+        data = client.get("/api/about").get_json()
+        assert data["name"] == "Game Score Tracker"
+        assert data["version"] == "1.0.0"
+
+    def test_counts_are_zero_when_empty(self, client):
+        """PARE-54: counts are 0 when no data exists."""
+        data = client.get("/api/about").get_json()
+        assert data["total_players"] == 0
+        assert data["total_scores"] == 0
+        assert data["total_tournaments"] == 0
+
+    def test_total_scores_count(self, client):
+        """PARE-54: total_scores reflects submitted scores."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 150)
+        data = client.get("/api/about").get_json()
+        assert data["total_scores"] == 3
+
+    def test_total_players_unique(self, client):
+        """PARE-54: total_players counts distinct names."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 150)
+        data = client.get("/api/about").get_json()
+        assert data["total_players"] == 2
+
+    def test_total_tournaments_count(self, client):
+        """PARE-54: total_tournaments counts created tournaments."""
+        from datetime import datetime, timezone, timedelta
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        ends = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+        client.post("/api/tournaments", json={"name": "T1", "starts_at": future, "ends_at": ends})
+        data = client.get("/api/about").get_json()
+        assert data["total_tournaments"] == 1
+
+
+class TestAboutPage:
+    """Tests for GET /about HTML page."""
+
+    def test_returns_200(self, client):
+        """PARE-54: /about returns 200."""
+        resp = client.get("/about")
+        assert resp.status_code == 200
+
+    def test_shows_app_name(self, client):
+        """PARE-54: /about renders the app name."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "Game Score Tracker" in body
+
+    def test_shows_version(self, client):
+        """PARE-54: /about renders the version."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "1.0.0" in body
+
+    def test_shows_player_count(self, client):
+        """PARE-54: /about renders the total unique players count."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Bob", 200)
+        body = client.get("/about").data.decode("utf-8")
+        assert "2" in body
+
+    def test_shows_score_count(self, client):
+        """PARE-54: /about renders total scores submitted."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        body = client.get("/about").data.decode("utf-8")
+        assert "2" in body
+
+    def test_shows_tournament_count(self, client):
+        """PARE-54: /about renders total tournaments created."""
+        from datetime import datetime, timezone, timedelta
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        ends = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+        client.post("/api/tournaments", json={"name": "T1", "starts_at": future, "ends_at": ends})
+        body = client.get("/about").data.decode("utf-8")
+        assert "1" in body
+
+    def test_dark_theme_link(self, client):
+        """PARE-54: /about includes the shared CSS stylesheet."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "style.css" in body
+
+
+# ---------------------------------------------------------------------------
+# PARE-54 additional edge case tests (added by Tester)
+# ---------------------------------------------------------------------------
+
+class TestAboutAPIEdgeCases:
+    """Extra edge cases for /api/about not covered by the coder's tests."""
+
+    def test_content_type_is_json(self, client):
+        """PARE-54: /api/about must return Content-Type application/json."""
+        resp = client.get("/api/about")
+        assert "application/json" in resp.content_type
+
+    def test_counts_update_after_more_scores(self, client):
+        """PARE-54: counts reflect all data, not a cached snapshot."""
+        post_score(client, "Alice", 100)
+        data1 = client.get("/api/about").get_json()
+        assert data1["total_scores"] == 1
+        post_score(client, "Bob", 200)
+        data2 = client.get("/api/about").get_json()
+        assert data2["total_scores"] == 2
+        assert data2["total_players"] == 2
+
+    def test_total_players_not_inflated_by_duplicate_names(self, client):
+        """PARE-54: same player submitting many scores counts as 1 unique player."""
+        for score in [10, 20, 30, 40, 50]:
+            post_score(client, "SamePlayer", score)
+        data = client.get("/api/about").get_json()
+        assert data["total_players"] == 1
+        assert data["total_scores"] == 5
+
+    def test_version_is_string(self, client):
+        """PARE-54: version field must be a string, not a number."""
+        data = client.get("/api/about").get_json()
+        assert isinstance(data["version"], str)
+
+    def test_counts_are_integers(self, client):
+        """PARE-54: count fields must be integers."""
+        data = client.get("/api/about").get_json()
+        assert isinstance(data["total_players"], int)
+        assert isinstance(data["total_scores"], int)
+        assert isinstance(data["total_tournaments"], int)
+
+    def test_multiple_tournaments_counted(self, client):
+        """PARE-54: total_tournaments counts each tournament created."""
+        from datetime import datetime, timezone, timedelta
+        for i in range(3):
+            future = (datetime.now(timezone.utc) + timedelta(hours=i + 1)).isoformat()
+            ends = (datetime.now(timezone.utc) + timedelta(hours=i + 2)).isoformat()
+            client.post("/api/tournaments", json={
+                "name": f"Tournament {i}", "starts_at": future, "ends_at": ends
+            })
+        data = client.get("/api/about").get_json()
+        assert data["total_tournaments"] == 3
+
+    def test_no_extra_unexpected_keys(self, client):
+        """PARE-54: API response contains exactly the expected keys, nothing extra."""
+        data = client.get("/api/about").get_json()
+        expected_keys = {"name", "version", "total_players", "total_scores", "total_tournaments"}
+        assert set(data.keys()) == expected_keys
+
+
+class TestAboutPageEdgeCases:
+    """Extra edge cases for GET /about HTML page."""
+
+    def test_has_back_link(self, client):
+        """PARE-54: /about page must include a navigation link back to home."""
+        body = client.get("/about").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_title_tag_present(self, client):
+        """PARE-54: /about page must have a <title> tag."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_shows_zero_counts_when_empty(self, client):
+        """PARE-54: /about page renders 0 stats when DB is empty."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "0" in body
+
+    def test_labels_present(self, client):
+        """PARE-54: /about page must label each stat clearly."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "Player" in body or "player" in body
+        assert "Score" in body or "score" in body
+        assert "Tournament" in body or "tournament" in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-54: POST /about is not a valid endpoint — expect 405."""
+        resp = client.post("/about", json={})
+        assert resp.status_code == 405
+
+    def test_method_not_allowed_api_post(self, client):
+        """PARE-54: POST /api/about is not a valid endpoint — expect 405."""
+        resp = client.post("/api/about", json={})
+        assert resp.status_code == 405

@@ -548,6 +548,42 @@ def history_page():
     return render_template('history.html', entries=entries)
 
 
+# ---------------------------------------------------------------------------
+# PARE-54 — About page
+# ---------------------------------------------------------------------------
+
+def _get_about_data():
+    """Return about data dict shared by /api/about and /about."""
+    with database.get_db() as conn:
+        total_players = conn.execute(
+            'SELECT COUNT(DISTINCT name) FROM scores'
+        ).fetchone()[0]
+        total_scores = conn.execute(
+            'SELECT COUNT(*) FROM scores'
+        ).fetchone()[0]
+        total_tournaments = conn.execute(
+            'SELECT COUNT(*) FROM tournaments'
+        ).fetchone()[0]
+    return {
+        'name': 'Game Score Tracker',
+        'version': '1.0.0',
+        'total_players': total_players,
+        'total_scores': total_scores,
+        'total_tournaments': total_tournaments,
+    }
+
+
+@app.route('/api/about', methods=['GET'])
+def api_about():
+    return jsonify(_get_about_data())
+
+
+@app.route('/about', methods=['GET'])
+def about_page():
+    data = _get_about_data()
+    return render_template('about.html', **data)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
