@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Achievements</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+
+        .achievements-container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .achievements-section {
+            margin-bottom: 2rem;
+        }
+
+        .achievements-section h2 {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: #0f172a;
+            color: #4ade80;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            border-bottom: 1px solid #2d2d4e;
+        }
+
+        td {
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid #1e2a45;
+            font-family: 'Courier New', monospace;
+            color: #e0e0e0;
+        }
+
+        tr:hover td {
+            background-color: #0f172a;
+        }
+
+        td.center {
+            text-align: center;
+        }
+
+        .checkmark {
+            color: #4ade80;
+            font-size: 1.1rem;
+        }
+
+        .empty-cell {
+            color: #2d2d4e;
+            font-size: 1.1rem;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            font-size: 0.9rem;
+            padding: 1rem 0;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Achievements</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="achievements-container">
+        <div class="achievements-section">
+            <h2>Player Milestones</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Total Scores</th>
+                        {% for milestone in milestones %}
+                        <th>{{ milestone }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if players %}
+                    {% for p in players %}
+                    <tr>
+                        <td>{{ p.player }}</td>
+                        <td>{{ p.total_scores }}</td>
+                        {% for milestone in milestones %}
+                        <td class="center">
+                            {% if milestone in p.achievements %}
+                            <span class="checkmark">&#10003;</span>
+                            {% else %}
+                            <span class="empty-cell">—</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="{{ milestones|length + 2 }}" class="empty-state">No players yet.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
