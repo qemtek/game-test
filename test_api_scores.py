@@ -1872,3 +1872,163 @@ class TestAboutPageEdgeCases:
         """PARE-54: POST /api/about is not a valid endpoint — expect 405."""
         resp = client.post("/api/about", json={})
         assert resp.status_code == 405
+
+
+# ===========================================================================
+# PARE-57 — GET /api/badges and GET /badges
+# ===========================================================================
+
+class TestApiBadges:
+    """Tests for GET /api/badges JSON endpoint."""
+
+    def test_empty_db_returns_empty_list(self, client):
+        """PARE-57: no scores -> no badges."""
+        resp = client.get("/api/badges")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_returns_json_content_type(self, client):
+        """PARE-57: Content-Type must be application/json."""
+        resp = client.get("/api/badges")
+        assert "application/json" in resp.content_type
+
+    def test_gold_badge_assigned_at_8000(self, client):
+        """PARE-57: player with best score >= 8000 gets gold badge."""
+        post_score(client, "Alice", 8000)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert data[0]["player"] == "Alice"
+        assert data[0]["badge"] == "gold"
+        assert data[0]["best_score"] == 8000
+
+    def test_silver_badge_assigned_5000_to_7999(self, client):
+        """PARE-57: player with best score 5000-7999 gets silver."""
+        post_score(client, "Bob", 7999)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert data[0]["badge"] == "silver"
+
+    def test_silver_badge_at_5000(self, client):
+        """PARE-57: exactly 5000 -> silver."""
+        post_score(client, "Carol", 5000)
+        data = client.get("/api/badges").get_json()
+        assert data[0]["badge"] == "silver"
+
+    def test_bronze_badge_assigned_2000_to_4999(self, client):
+        """PARE-57: player with best score 2000-4999 gets bronze."""
+        post_score(client, "Dave", 4999)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert data[0]["badge"] == "bronze"
+
+    def test_bronze_badge_at_2000(self, client):
+        """PARE-57: exactly 2000 -> bronze."""
+        post_score(client, "Eve", 2000)
+        data = client.get("/api/badges").get_json()
+        assert data[0]["badge"] == "bronze"
+
+    def test_below_2000_no_badge(self, client):
+        """PARE-57: player with best score < 2000 does not appear in badges."""
+        post_score(client, "Frank", 1999)
+        data = client.get("/api/badges").get_json()
+        assert data == []
+
+    def test_multiple_scores_uses_best(self, client):
+        """PARE-57: badge is based on the player's best (max) score."""
+        post_score(client, "Grace", 1000)
+        post_score(client, "Grace", 9000)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 1
+        assert data[0]["badge"] == "gold"
+        assert data[0]["best_score"] == 9000
+
+    def test_response_fields(self, client):
+        """PARE-57: each item has exactly player, badge, best_score."""
+        post_score(client, "Heidi", 5500)
+        data = client.get("/api/badges").get_json()
+        assert set(data[0].keys()) == {"player", "badge", "best_score"}
+
+    def test_multiple_players_all_tiers(self, client):
+        """PARE-57: multiple players get correct tiers."""
+        post_score(client, "Gold1", 9000)
+        post_score(client, "Silver1", 6000)
+        post_score(client, "Bronze1", 3000)
+        post_score(client, "None1", 500)
+        data = client.get("/api/badges").get_json()
+        assert len(data) == 3
+        tiers = {d["player"]: d["badge"] for d in data}
+        assert tiers["Gold1"] == "gold"
+        assert tiers["Silver1"] == "silver"
+        assert tiers["Bronze1"] == "bronze"
+        assert "None1" not in tiers
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-57: POST /api/badges is not a valid endpoint — expect 405."""
+        resp = client.post("/api/badges", json={})
+        assert resp.status_code == 405
+
+
+class TestBadgesPage:
+    """Tests for GET /badges HTML page."""
+
+    def test_returns_200(self, client):
+        """PARE-57: /badges returns HTTP 200."""
+        resp = client.get("/badges")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-57: /badges returns HTML content."""
+        resp = client.get("/badges")
+        assert "text/html" in resp.content_type
+
+    def test_has_title(self, client):
+        """PARE-57: /badges page has a <title> tag."""
+        body = client.get("/badges").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_summary_counts_shown(self, client):
+        """PARE-57: badge count summary is shown (Gold, Silver, Bronze)."""
+        post_score(client, "G", 8001)
+        post_score(client, "S", 5001)
+        post_score(client, "B", 2001)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Gold" in body or "gold" in body
+        assert "Silver" in body or "silver" in body
+        assert "Bronze" in body or "bronze" in body
+
+    def test_summary_counts_correct(self, client):
+        """PARE-57: count values are accurate."""
+        post_score(client, "G1", 8001)
+        post_score(client, "G2", 9000)
+        post_score(client, "S1", 5500)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "2 Gold" in body or "2\nGold" in body or "2 gold" in body.lower()
+        assert "1 Silver" in body or "1\nSilver" in body or "1 silver" in body.lower()
+
+    def test_players_appear_in_grid(self, client):
+        """PARE-57: badged players appear on the page."""
+        post_score(client, "Hero", 8500)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Hero" in body
+
+    def test_no_badge_players_excluded(self, client):
+        """PARE-57: players below 2000 do not appear on the page."""
+        post_score(client, "Loser", 100)
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Loser" not in body
+
+    def test_has_back_link(self, client):
+        """PARE-57: /badges page must include a navigation link back to home."""
+        body = client.get("/badges").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_empty_state_shown_when_no_badges(self, client):
+        """PARE-57: shows empty state message when no one has earned a badge."""
+        body = client.get("/badges").data.decode("utf-8")
+        # Either an empty-state message or zero counts visible
+        assert "0" in body or "No badge" in body or "no badge" in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-57: POST /badges is not a valid endpoint — expect 405."""
+        resp = client.post("/badges", json={})
+        assert resp.status_code == 405
