@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badges</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .badges-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .badge-summary {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .badge-count {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .badge-icon {
+            display: inline-block;
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .badge-icon.gold {
+            background: #fbbf24;
+            box-shadow: 0 0 6px #fbbf2466;
+        }
+
+        .badge-icon.silver {
+            background: #94a3b8;
+            box-shadow: 0 0 6px #94a3b866;
+        }
+
+        .badge-icon.bronze {
+            background: #b45309;
+            box-shadow: 0 0 6px #b4530966;
+        }
+
+        .badge-count-label {
+            color: #e0e0e0;
+        }
+
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .badge-card {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: border-color 0.15s;
+        }
+
+        .badge-card.gold {
+            border-color: #fbbf2444;
+        }
+
+        .badge-card.gold:hover {
+            border-color: #fbbf24;
+        }
+
+        .badge-card.silver {
+            border-color: #94a3b844;
+        }
+
+        .badge-card.silver:hover {
+            border-color: #94a3b8;
+        }
+
+        .badge-card.bronze {
+            border-color: #b4530944;
+        }
+
+        .badge-card.bronze:hover {
+            border-color: #b45309;
+        }
+
+        .badge-card-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .badge-card-icon.gold {
+            background: #fbbf2422;
+            border: 2px solid #fbbf24;
+            color: #fbbf24;
+        }
+
+        .badge-card-icon.silver {
+            background: #94a3b822;
+            border: 2px solid #94a3b8;
+            color: #94a3b8;
+        }
+
+        .badge-card-icon.bronze {
+            background: #b4530922;
+            border: 2px solid #b45309;
+            color: #b45309;
+        }
+
+        .badge-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .badge-card-name {
+            font-size: 0.95rem;
+            color: #e0e0e0;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .badge-card-score {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.2rem;
+            letter-spacing: 1px;
+        }
+
+        .badge-card-tier {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 0.2rem;
+        }
+
+        .badge-card-tier.gold { color: #fbbf24; }
+        .badge-card-tier.silver { color: #94a3b8; }
+        .badge-card-tier.bronze { color: #b45309; }
+
+        .empty-state {
+            color: #6b7280;
+            text-align: center;
+            padding: 2rem;
+            letter-spacing: 1px;
+        }
+
+        .section-title {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Badges</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="badges-container">
+        <h2 class="section-title">Badge Leaderboard</h2>
+
+        <!-- Summary counts -->
+        <div class="badge-summary">
+            <div class="badge-count">
+                <span class="badge-icon gold"></span>
+                <span class="badge-count-label">{{ gold_count }} Gold</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon silver"></span>
+                <span class="badge-count-label">{{ silver_count }} Silver</span>
+            </div>
+            <div class="badge-count">
+                <span class="badge-icon bronze"></span>
+                <span class="badge-count-label">{{ bronze_count }} Bronze</span>
+            </div>
+        </div>
+
+        <!-- Badge grid -->
+        {% if badges %}
+        <div class="badge-grid">
+            {% for b in badges %}
+            <div class="badge-card {{ b.badge }}">
+                <div class="badge-card-icon {{ b.badge }}">
+                    {% if b.badge == 'gold' %}🥇{% elif b.badge == 'silver' %}🥈{% else %}🥉{% endif %}
+                </div>
+                <div class="badge-card-info">
+                    <div class="badge-card-name">{{ b.player }}</div>
+                    <div class="badge-card-score">{{ b.best_score }} pts</div>
+                    <div class="badge-card-tier {{ b.badge }}">{{ b.badge }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No badges awarded yet. Score 2000+ to earn one!</div>
+        {% endif %}
+    </div>
+</body>
+</html>
