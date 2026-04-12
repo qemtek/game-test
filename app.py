@@ -614,6 +614,7 @@ def _get_badge_data():
                 'badge': badge,
                 'best_score': row['best_score'],
             })
+    result.sort(key=lambda b: b['best_score'], reverse=True)
     return result
 
 
