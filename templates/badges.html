@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard Badges</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .badges-container {
+            width: 100%;
+            max-width: 700px;
+        }
+
+        .badges-section {
+            margin-bottom: 2rem;
+        }
+
+        .badges-section h2 {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .badge-summary {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .badge-summary-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .badge-icon {
+            display: inline-block;
+            width: 1.4rem;
+            height: 1.4rem;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .badge-icon.gold {
+            background-color: #fbbf24;
+            box-shadow: 0 0 6px #fbbf24;
+        }
+
+        .badge-icon.silver {
+            background-color: #9ca3af;
+            box-shadow: 0 0 6px #9ca3af;
+        }
+
+        .badge-icon.bronze {
+            background-color: #b45309;
+            box-shadow: 0 0 6px #b45309;
+        }
+
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .badge-card {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .badge-card.gold {
+            border-color: #fbbf24;
+        }
+
+        .badge-card.silver {
+            border-color: #9ca3af;
+        }
+
+        .badge-card.bronze {
+            border-color: #b45309;
+        }
+
+        .badge-card-info {
+            min-width: 0;
+        }
+
+        .badge-player-name {
+            font-size: 0.9rem;
+            color: #e0e0e0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .badge-best-score {
+            font-size: 0.75rem;
+            color: #6b7280;
+            letter-spacing: 1px;
+            margin-top: 0.2rem;
+        }
+
+        .badge-label {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .badge-label.gold { color: #fbbf24; }
+        .badge-label.silver { color: #9ca3af; }
+        .badge-label.bronze { color: #b45309; }
+
+        .no-badges {
+            color: #6b7280;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Badges</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="badges-container">
+        <div class="badges-section">
+            <h2>Summary</h2>
+            <div class="badge-summary">
+                <div class="badge-summary-item">
+                    <span class="badge-icon gold"></span>
+                    <span>{{ gold_count }} Gold</span>
+                </div>
+                <div class="badge-summary-item">
+                    <span class="badge-icon silver"></span>
+                    <span>{{ silver_count }} Silver</span>
+                </div>
+                <div class="badge-summary-item">
+                    <span class="badge-icon bronze"></span>
+                    <span>{{ bronze_count }} Bronze</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="badges-section">
+            <h2>Badge Holders</h2>
+            {% if badges %}
+            <div class="badge-grid">
+                {% for b in badges %}
+                <div class="badge-card {{ b.badge }}">
+                    <span class="badge-icon {{ b.badge }}"></span>
+                    <div class="badge-card-info">
+                        <div class="badge-player-name">{{ b.player }}</div>
+                        <div class="badge-label {{ b.badge }}">{{ b.badge }}</div>
+                        <div class="badge-best-score">Best: {{ b.best_score }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-badges">No badge holders yet. Reach 2000+ to earn a bronze badge!</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
