@@ -584,6 +584,65 @@ def about_page():
     return render_template('about.html', **data)
 
 
+# ---------------------------------------------------------------------------
+# Badge helpers
+# ---------------------------------------------------------------------------
+
+def _assign_badge(best_score):
+    """Return badge string for a given best score, or None if below threshold."""
+    if best_score >= 8000:
+        return 'gold'
+    elif best_score >= 5000:
+        return 'silver'
+    elif best_score >= 2000:
+        return 'bronze'
+    return None
+
+
+def _get_badge_data():
+    """Query DB and return list of {player, badge, best_score} dicts."""
+    with database.get_db() as conn:
+        rows = conn.execute(
+            'SELECT name, MAX(score) AS best_score FROM scores GROUP BY name'
+        ).fetchall()
+    result = []
+    for row in rows:
+        badge = _assign_badge(row['best_score'])
+        if badge is not None:
+            result.append({
+                'player': row['name'],
+                'badge': badge,
+                'best_score': row['best_score'],
+            })
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Badge routes
+# ---------------------------------------------------------------------------
+
+@app.route('/api/badges', methods=['GET'])
+def api_badges():
+    """Return JSON array of {player, badge, best_score} for players with badges."""
+    return jsonify(_get_badge_data())
+
+
+@app.route('/badges', methods=['GET'])
+def badges_page():
+    """HTML badge grid with colored icons and count summary."""
+    badges = _get_badge_data()
+    gold_count = sum(1 for b in badges if b['badge'] == 'gold')
+    silver_count = sum(1 for b in badges if b['badge'] == 'silver')
+    bronze_count = sum(1 for b in badges if b['badge'] == 'bronze')
+    return render_template(
+        'badges.html',
+        badges=badges,
+        gold_count=gold_count,
+        silver_count=silver_count,
+        bronze_count=bronze_count,
+    )
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
