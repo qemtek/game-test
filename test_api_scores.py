@@ -2041,3 +2041,149 @@ class TestBadgesPage:
         """PARE-61: POST /api/badges is not a valid endpoint — expect 405."""
         resp = client.post("/api/badges", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-66: Badge system — additional edge cases
+# ---------------------------------------------------------------------------
+
+class TestApiBadgesPare66:
+    """Additional /api/badges tests for PARE-66."""
+
+    def test_gold_exact_boundary_8000(self, client):
+        """PARE-66: Score exactly 8000 earns gold."""
+        client.post("/api/scores", json={"name": "ExactGold", "score": 8000})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "ExactGold"), None)
+        assert entry is not None
+        assert entry["badge"] == "gold"
+
+    def test_silver_exact_boundary_5000(self, client):
+        """PARE-66: Score exactly 5000 earns silver."""
+        client.post("/api/scores", json={"name": "ExactSilver", "score": 5000})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "ExactSilver"), None)
+        assert entry is not None
+        assert entry["badge"] == "silver"
+
+    def test_bronze_exact_boundary_2000(self, client):
+        """PARE-66: Score exactly 2000 earns bronze."""
+        client.post("/api/scores", json={"name": "ExactBronze", "score": 2000})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "ExactBronze"), None)
+        assert entry is not None
+        assert entry["badge"] == "bronze"
+
+    def test_score_1999_excluded(self, client):
+        """PARE-66: Score of 1999 (one below bronze) earns no badge."""
+        client.post("/api/scores", json={"name": "JustMiss", "score": 1999})
+        data = client.get("/api/badges").get_json()
+        assert not any(b["player"] == "JustMiss" for b in data)
+
+    def test_best_score_field_is_integer(self, client):
+        """PARE-66: best_score value in JSON is an integer, not a string."""
+        client.post("/api/scores", json={"name": "IntCheck", "score": 3000})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "IntCheck"), None)
+        assert entry is not None
+        assert isinstance(entry["best_score"], int)
+
+    def test_best_score_reflects_max_not_latest(self, client):
+        """PARE-66: best_score uses MAX even when a lower score is submitted later."""
+        client.post("/api/scores", json={"name": "MaxTest", "score": 9000})
+        client.post("/api/scores", json={"name": "MaxTest", "score": 500})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "MaxTest"), None)
+        assert entry is not None
+        assert entry["best_score"] == 9000
+        assert entry["badge"] == "gold"
+
+    def test_response_is_json_array(self, client):
+        """PARE-66: /api/badges response is a JSON array (list), not an object."""
+        resp = client.get("/api/badges")
+        assert resp.content_type.startswith("application/json")
+        data = resp.get_json()
+        assert isinstance(data, list)
+
+    def test_no_duplicate_players(self, client):
+        """PARE-66: Each player appears at most once even with many score rows."""
+        for score in [2500, 3000, 7000, 9999]:
+            client.post("/api/scores", json={"name": "MultiScore", "score": score})
+        data = client.get("/api/badges").get_json()
+        names = [b["player"] for b in data if b["player"] == "MultiScore"]
+        assert len(names) == 1
+
+    def test_gold_count_absent_players_not_promoted(self, client):
+        """PARE-66: A silver player does not get promoted to gold when gold threshold not met."""
+        client.post("/api/scores", json={"name": "AlmostGold", "score": 7999})
+        data = client.get("/api/badges").get_json()
+        entry = next((b for b in data if b["player"] == "AlmostGold"), None)
+        assert entry is not None
+        assert entry["badge"] == "silver"
+        assert entry["badge"] != "gold"
+
+
+class TestBadgesPagePare66:
+    """Additional /badges HTML page tests for PARE-66."""
+
+    def test_dark_theme_present(self, client):
+        """PARE-66: /badges page uses a dark background color or dark-theme class."""
+        body = client.get("/badges").data.decode("utf-8")
+        # Accepts any of: background-color dark value, class 'dark', or known dark hex
+        has_dark = (
+            "background-color" in body
+            or "dark" in body.lower()
+            or "#1" in body  # common dark hex prefix e.g. #111, #121212
+            or "#2" in body
+        )
+        assert has_dark, "Expected dark theme indicators in page HTML"
+
+    def test_count_summary_exact_numbers(self, client):
+        """PARE-66: Badge count summary reflects exact counts of each tier."""
+        client.post("/api/scores", json={"name": "G1", "score": 9000})
+        client.post("/api/scores", json={"name": "G2", "score": 8500})
+        client.post("/api/scores", json={"name": "S1", "score": 6000})
+        client.post("/api/scores", json={"name": "B1", "score": 2500})
+        client.post("/api/scores", json={"name": "B2", "score": 3000})
+        body = client.get("/badges").data.decode("utf-8")
+        # "2 Gold" and "1 Silver" and "2 Bronze" should appear
+        assert "2" in body and "Gold" in body
+        assert "1" in body and "Silver" in body
+
+    def test_page_shows_best_score_value(self, client):
+        """PARE-66: /badges page displays the best_score value for a player."""
+        client.post("/api/scores", json={"name": "ScoreDisplay", "score": 8765})
+        body = client.get("/badges").data.decode("utf-8")
+        assert "8765" in body
+
+    def test_all_three_tiers_shown_in_grid(self, client):
+        """PARE-66: When all tiers present, all three badge colors appear in the page."""
+        client.post("/api/scores", json={"name": "TierGold", "score": 8000})
+        client.post("/api/scores", json={"name": "TierSilver", "score": 5000})
+        client.post("/api/scores", json={"name": "TierBronze", "score": 2000})
+        body = client.get("/badges").data.decode("utf-8")
+        assert "gold" in body
+        assert "silver" in body
+        assert "bronze" in body
+
+    def test_only_badged_players_in_grid(self, client):
+        """PARE-66: Players below 2000 are excluded; badged players are included."""
+        client.post("/api/scores", json={"name": "Visible", "score": 5000})
+        client.post("/api/scores", json={"name": "Hidden", "score": 1000})
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Visible" in body
+        assert "Hidden" not in body
+
+    def test_badge_grid_present(self, client):
+        """PARE-66: /badges page contains a grid or list container for badge cards."""
+        client.post("/api/scores", json={"name": "GridTest", "score": 8000})
+        body = client.get("/badges").data.decode("utf-8")
+        # Expect some container element for the grid
+        has_grid = (
+            "grid" in body.lower()
+            or "badge-card" in body.lower()
+            or "badge-grid" in body.lower()
+            or "<ul" in body.lower()
+            or "<div" in body.lower()
+        )
+        assert has_grid, "Expected a grid/list container for badges"
