@@ -2041,3 +2041,30 @@ class TestBadgesPage:
         """PARE-61: POST /api/badges is not a valid endpoint — expect 405."""
         resp = client.post("/api/badges", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-65: Badge results sorted by best_score descending
+# ---------------------------------------------------------------------------
+
+class TestApiBadgesSortOrder:
+    """Tests for GET /api/badges sort order [PARE-65]."""
+
+    def test_results_sorted_by_best_score_descending(self, client):
+        """PARE-65: /api/badges results are ordered by best_score descending."""
+        client.post("/api/scores", json={"name": "Low", "score": 2500})
+        client.post("/api/scores", json={"name": "Mid", "score": 6000})
+        client.post("/api/scores", json={"name": "High", "score": 9000})
+        data = client.get("/api/badges").get_json()
+        scores = [b["best_score"] for b in data]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_gold_before_silver_before_bronze(self, client):
+        """PARE-65: Gold badges appear before silver, silver before bronze."""
+        client.post("/api/scores", json={"name": "BronzeFirst", "score": 2000})
+        client.post("/api/scores", json={"name": "SilverFirst", "score": 5000})
+        client.post("/api/scores", json={"name": "GoldFirst", "score": 8000})
+        data = client.get("/api/badges").get_json()
+        badge_order = [b["badge"] for b in data]
+        # Gold (8000) > Silver (5000) > Bronze (2000) by score descending
+        assert badge_order == ["gold", "silver", "bronze"]
