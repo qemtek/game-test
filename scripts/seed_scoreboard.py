@@ -38,7 +38,8 @@ PLAYERS = [
     ("StormRider", [3500]),
     ("NovaStar", [3100, 1500]),
     ("ZeroGrav", [2800]),
-    ("VoltEdge", [2400, 900]),
+    ("PulseMax", [2400]),
+    ("VoltEdge", [900]),
 ]
 
 TOURNAMENT_NAME = "QA Sprint"
