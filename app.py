@@ -685,6 +685,54 @@ def achievements_page():
     return render_template('achievements.html', players=data, milestones=milestone_names)
 
 
+# ---------------------------------------------------------------------------
+# PARE-68 — Game statistics dashboard
+# ---------------------------------------------------------------------------
+
+def _get_stats_data():
+    """Return aggregate stats dict for /api/stats and /stats."""
+    with database.get_db() as conn:
+        total_games = conn.execute('SELECT COUNT(*) FROM scores').fetchone()[0]
+        total_players = conn.execute('SELECT COUNT(DISTINCT name) FROM scores').fetchone()[0]
+
+        highest_row = conn.execute(
+            'SELECT name, score FROM scores ORDER BY score DESC LIMIT 1'
+        ).fetchone()
+        highest_score = dict(highest_row) if highest_row else {'name': None, 'score': None}
+
+        most_active_row = conn.execute(
+            'SELECT name, COUNT(*) AS games_played FROM scores GROUP BY name ORDER BY games_played DESC LIMIT 1'
+        ).fetchone()
+        most_active_player = dict(most_active_row) if most_active_row else {'name': None, 'games_played': 0}
+
+        avg_row = conn.execute('SELECT AVG(score) FROM scores').fetchone()[0]
+        average_score = round(avg_row, 2) if avg_row is not None else 0
+
+        scores_today = conn.execute(
+            "SELECT COUNT(*) FROM scores WHERE date(created_at) = date('now')"
+        ).fetchone()[0]
+
+    return {
+        'total_games': total_games,
+        'total_players': total_players,
+        'highest_score': highest_score,
+        'most_active_player': most_active_player,
+        'average_score': average_score,
+        'scores_today': scores_today,
+    }
+
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    return jsonify(_get_stats_data())
+
+
+@app.route('/stats', methods=['GET'])
+def stats_page():
+    data = _get_stats_data()
+    return render_template('stats.html', **data)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)

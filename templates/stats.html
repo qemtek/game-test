@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Statistics</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .stats-container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.25rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+        }
+
+        .stat-sub {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            font-family: 'Courier New', monospace;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Game Statistics</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="stats-container">
+        <div class="stats-grid">
+
+            <div class="stat-card">
+                <div class="stat-label">Total Games</div>
+                <div class="stat-value">{{ total_games }}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Total Players</div>
+                <div class="stat-value">{{ total_players }}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Highest Score</div>
+                <div class="stat-value">{{ highest_score.score if highest_score.score is not none else '—' }}</div>
+                {% if highest_score.name %}
+                <div class="stat-sub">{{ highest_score.name }}</div>
+                {% endif %}
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Most Active Player</div>
+                <div class="stat-value">{{ most_active_player.games_played }}</div>
+                {% if most_active_player.name %}
+                <div class="stat-sub">{{ most_active_player.name }}</div>
+                {% endif %}
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Average Score</div>
+                <div class="stat-value">{{ average_score }}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Scores Today</div>
+                <div class="stat-value">{{ scores_today }}</div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
