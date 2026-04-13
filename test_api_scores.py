@@ -2188,3 +2188,132 @@ class TestAchievementsPage:
         """PARE-67: /achievements shows empty state when no players."""
         body = client.get("/achievements").data.decode("utf-8")
         assert "No players" in body or "no players" in body or "<table" not in body
+
+
+# ---------------------------------------------------------------------------
+# PARE-68 — Game statistics dashboard
+# ---------------------------------------------------------------------------
+
+
+class TestApiStats:
+    """Tests for GET /api/stats [PARE-68]."""
+
+    def test_returns_200(self, client):
+        """PARE-68: /api/stats returns HTTP 200."""
+        resp = client.get("/api/stats")
+        assert resp.status_code == 200
+
+    def test_empty_db_returns_zero_fields(self, client):
+        """PARE-68: Empty DB returns all 6 fields with zero/null values."""
+        data = client.get("/api/stats").get_json()
+        assert data["total_games"] == 0
+        assert data["total_players"] == 0
+        assert data["average_score"] == 0
+        assert data["scores_today"] == 0
+
+    def test_all_six_fields_present(self, client):
+        """PARE-68: Response contains all 6 required fields."""
+        data = client.get("/api/stats").get_json()
+        assert "total_games" in data
+        assert "total_players" in data
+        assert "highest_score" in data
+        assert "most_active_player" in data
+        assert "average_score" in data
+        assert "scores_today" in data
+
+    def test_total_games_count(self, client):
+        """PARE-68: total_games reflects score count."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 300)
+        data = client.get("/api/stats").get_json()
+        assert data["total_games"] == 3
+
+    def test_total_players_distinct(self, client):
+        """PARE-68: total_players counts distinct names."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 300)
+        data = client.get("/api/stats").get_json()
+        assert data["total_players"] == 2
+
+    def test_highest_score_fields(self, client):
+        """PARE-68: highest_score has name and score fields."""
+        post_score(client, "Alice", 500)
+        post_score(client, "Bob", 9000)
+        data = client.get("/api/stats").get_json()
+        assert data["highest_score"]["name"] == "Bob"
+        assert data["highest_score"]["score"] == 9000
+
+    def test_most_active_player_fields(self, client):
+        """PARE-68: most_active_player has name and games_played fields."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 200)
+        post_score(client, "Bob", 300)
+        data = client.get("/api/stats").get_json()
+        assert data["most_active_player"]["name"] == "Alice"
+        assert data["most_active_player"]["games_played"] == 2
+
+    def test_average_score(self, client):
+        """PARE-68: average_score is mean of all scores."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Bob", 300)
+        data = client.get("/api/stats").get_json()
+        assert data["average_score"] == 200.0
+
+    def test_scores_today_field_present(self, client):
+        """PARE-68: scores_today is an integer."""
+        data = client.get("/api/stats").get_json()
+        assert isinstance(data["scores_today"], int)
+
+
+class TestStatsPage:
+    """Tests for GET /stats HTML page [PARE-68]."""
+
+    def test_returns_200(self, client):
+        """PARE-68: /stats returns HTTP 200."""
+        resp = client.get("/stats")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-68: content-type is text/html."""
+        resp = client.get("/stats")
+        assert "text/html" in resp.content_type
+
+    def test_has_title(self, client):
+        """PARE-68: /stats page has a <title> tag."""
+        body = client.get("/stats").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_has_back_link(self, client):
+        """PARE-68: /stats page has a link back to home."""
+        body = client.get("/stats").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_shows_six_stat_cards(self, client):
+        """PARE-68: /stats page contains 6 stat cards."""
+        body = client.get("/stats").data.decode("utf-8")
+        assert body.count("stat-card") >= 6
+
+    def test_shows_player_name_in_highest_score(self, client):
+        """PARE-68: highest score player name appears on the page."""
+        post_score(client, "TopPlayer", 9999)
+        body = client.get("/stats").data.decode("utf-8")
+        assert "TopPlayer" in body
+
+    def test_shows_most_active_player_name(self, client):
+        """PARE-68: most active player name appears on the page."""
+        for _ in range(3):
+            post_score(client, "ActivePlayer", 100)
+        body = client.get("/stats").data.decode("utf-8")
+        assert "ActivePlayer" in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-68: POST /stats is not a valid endpoint — expect 405."""
+        resp = client.post("/stats", json={})
+        assert resp.status_code == 405
+
+    def test_method_not_allowed_api_post(self, client):
+        """PARE-68: POST /api/stats is not a valid endpoint — expect 405."""
+        resp = client.post("/api/stats", json={})
+        assert resp.status_code == 405
