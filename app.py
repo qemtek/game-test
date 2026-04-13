@@ -755,7 +755,6 @@ def _compute_streaks(player_days):
             streak = 1
         if streak > best:
             best = streak
-    current = 1
     today = date.today()
     last_played_date = date.fromisoformat(days[-1])
     diff = today - last_played_date
