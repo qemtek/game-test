@@ -733,6 +733,81 @@ def stats_page():
     return render_template('stats.html', **data)
 
 
+# ---------------------------------------------------------------------------
+# PARE-69 — Player streak tracker
+# ---------------------------------------------------------------------------
+
+def _compute_streaks(player_days):
+    """Given a list of date strings (YYYY-MM-DD) for one player, return (current, best)."""
+    if not player_days:
+        return 0, 0
+    from datetime import date, timedelta
+    days = sorted(set(player_days))
+    current = 1
+    best = 1
+    streak = 1
+    for i in range(1, len(days)):
+        prev = date.fromisoformat(days[i - 1])
+        curr = date.fromisoformat(days[i])
+        if curr - prev == timedelta(days=1):
+            streak += 1
+        else:
+            streak = 1
+        if streak > best:
+            best = streak
+    today = date.today()
+    last_played_date = date.fromisoformat(days[-1])
+    diff = today - last_played_date
+    if diff > timedelta(days=1):
+        current = 0
+    else:
+        current = 1
+        for i in range(len(days) - 1, 0, -1):
+            curr = date.fromisoformat(days[i])
+            prev = date.fromisoformat(days[i - 1])
+            if curr - prev == timedelta(days=1):
+                current += 1
+            else:
+                break
+    return current, best
+
+
+def _get_streaks_data():
+    """Return list of {player, current_streak, best_streak, last_played} dicts."""
+    with database.get_db() as conn:
+        rows = conn.execute(
+            "SELECT name, date(created_at) AS day FROM scores GROUP BY name, day ORDER BY name, day"
+        ).fetchall()
+    from collections import defaultdict
+    player_days = defaultdict(list)
+    for row in rows:
+        player_days[row['name']].append(row['day'])
+    result = []
+    for player, days in player_days.items():
+        current, best = _compute_streaks(days)
+        result.append({
+            'player': player,
+            'current_streak': current,
+            'best_streak': best,
+            'last_played': days[-1] if days else None,
+        })
+    result.sort(key=lambda x: x['current_streak'], reverse=True)
+    return result
+
+
+@app.route('/api/streaks', methods=['GET'])
+def api_streaks():
+    """Return JSON array of player streak data."""
+    return jsonify(_get_streaks_data())
+
+
+@app.route('/streaks', methods=['GET'])
+def streaks_page():
+    """HTML table of player streaks sorted by current_streak DESC."""
+    streaks = _get_streaks_data()
+    return render_template('streaks.html', streaks=streaks)
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)

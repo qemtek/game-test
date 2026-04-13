@@ -2317,3 +2317,223 @@ class TestStatsPage:
         """PARE-68: POST /api/stats is not a valid endpoint — expect 405."""
         resp = client.post("/api/stats", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-69 — Player streak tracker
+# ---------------------------------------------------------------------------
+
+class TestApiStreaks:
+    """Tests for GET /api/streaks [PARE-69]."""
+
+    def test_returns_200(self, client):
+        """PARE-69: /api/streaks returns HTTP 200."""
+        resp = client.get("/api/streaks")
+        assert resp.status_code == 200
+
+    def test_empty_db_returns_empty_list(self, client):
+        """PARE-69: No scores -> empty array."""
+        data = client.get("/api/streaks").get_json()
+        assert data == []
+
+    def test_response_entry_fields(self, client):
+        """PARE-69: each entry has player, current_streak, best_streak, last_played."""
+        post_score(client, "Alice", 100)
+        data = client.get("/api/streaks").get_json()
+        assert len(data) == 1
+        assert set(data[0].keys()) == {"player", "current_streak", "best_streak", "last_played"}
+
+    def test_player_with_no_scores_not_shown(self, client):
+        """PARE-69: players with no scores don't appear."""
+        data = client.get("/api/streaks").get_json()
+        assert data == []
+
+    def test_single_score_same_day_streak(self, client):
+        """PARE-69: A single score on today gives current_streak=1, best_streak=1."""
+        post_score(client, "Alice", 100)
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["current_streak"] >= 1
+        assert alice["best_streak"] == 1
+
+    def test_consecutive_days_best_streak(self, client):
+        """PARE-69: Scores on consecutive days produce correct best_streak."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 300, '2026-04-12T10:00:00+00:00')"
+            )
+            conn.commit()
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["best_streak"] == 3
+
+    def test_gap_resets_streak(self, client):
+        """PARE-69: A gap in days resets the streak counter."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-12T10:00:00+00:00')"
+            )
+            conn.commit()
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["best_streak"] == 1
+
+    def test_multiple_scores_same_day_counted_once(self, client):
+        """PARE-69: Multiple scores on the same day count as 1 day."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-10T12:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 300, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.commit()
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["best_streak"] == 2
+
+    def test_sorted_by_current_streak_desc(self, client):
+        """PARE-69: Results are sorted by current_streak DESC."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Zoe', 100, '2026-04-09T10:00:00+00:00')"
+            )
+            conn.commit()
+        post_score(client, "Alice", 200)
+        data = client.get("/api/streaks").get_json()
+        streaks = [d["current_streak"] for d in data]
+        assert streaks == sorted(streaks, reverse=True)
+
+    def test_multiple_players_independent(self, client):
+        """PARE-69: Each player's streaks are calculated independently."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 300, '2026-04-12T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Bob', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.commit()
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        bob = next(d for d in data if d["player"] == "Bob")
+        assert alice["best_streak"] == 3
+        assert bob["best_streak"] == 1
+
+    def test_last_played_reflects_most_recent_day(self, client):
+        """PARE-69: last_played is the most recent scoring date."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.commit()
+        data = client.get("/api/streaks").get_json()
+        alice = next(d for d in data if d["player"] == "Alice")
+        assert alice["last_played"] == "2026-04-11"
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-69: POST /api/streaks is not a valid endpoint — expect 405."""
+        resp = client.post("/api/streaks", json={})
+        assert resp.status_code == 405
+
+
+class TestStreaksPage:
+    """Tests for GET /streaks HTML page [PARE-69]."""
+
+    def test_returns_200(self, client):
+        """PARE-69: /streaks returns HTTP 200."""
+        resp = client.get("/streaks")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-69: content-type is text/html."""
+        resp = client.get("/streaks")
+        assert "text/html" in resp.content_type
+
+    def test_has_title(self, client):
+        """PARE-69: /streaks page has a <title> tag."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_has_back_link(self, client):
+        """PARE-69: /streaks page has a link back to home."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_has_table_headers(self, client):
+        """PARE-69: table headers include Player, Current Streak, Best Streak, Last Played."""
+        post_score(client, "HeaderTest", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "Player" in body
+        assert "Current Streak" in body
+        assert "Best Streak" in body
+        assert "Last Played" in body
+
+    def test_shows_player_name(self, client):
+        """PARE-69: player name appears in the table."""
+        post_score(client, "StreakPlayer", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "StreakPlayer" in body
+
+    def test_highlight_class_for_streak_ge_3(self, client):
+        """PARE-69: rows with current_streak >= 3 get highlight class."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 300, '2026-04-12T10:00:00+00:00')"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "highlight" in body
+
+    def test_no_highlight_for_streak_lt_3(self, client):
+        """PARE-69: rows with current_streak < 3 don't get highlight class."""
+        post_score(client, "Bob", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        import re
+        bob_row = re.search(r'<tr[^>]*>.*?Bob.*?</tr>', body, re.DOTALL)
+        if bob_row:
+            assert "highlight" not in bob_row.group()
+
+    def test_empty_state_no_players(self, client):
+        """PARE-69: /streaks shows empty state when no players have scores."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "No streak data" in body or "<table" not in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-69: POST /streaks is not a valid endpoint — expect 405."""
+        resp = client.post("/streaks", json={})
+        assert resp.status_code == 405

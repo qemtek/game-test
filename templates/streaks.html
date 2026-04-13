@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Streaks</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+
+        .streaks-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .streaks-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .streaks-table th {
+            color: #6b7280;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: left;
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid #2d2d4e;
+        }
+
+        .streaks-table td {
+            padding: 0.7rem 1rem;
+            border-top: 1px solid #1e293b;
+            color: #d1d5db;
+            font-family: 'Courier New', monospace;
+        }
+
+        .streaks-table tr:nth-child(odd) {
+            background-color: #0f172a;
+        }
+
+        .streaks-table tr:nth-child(even) {
+            background-color: #1a1a2e;
+        }
+
+        .streaks-table tr.highlight td {
+            background-color: #064e3b;
+            color: #4ade80;
+        }
+
+        .streaks-table tr.highlight td.streak-value {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .streak-value {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .player-name-cell a {
+            color: #4ade80;
+            text-decoration: none;
+        }
+
+        .player-name-cell a:hover {
+            color: #86efac;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            font-size: 0.9rem;
+            padding: 1rem 0;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <h1>Player Streaks</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="streaks-container">
+        {% if streaks %}
+        <table class="streaks-table">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Current Streak</th>
+                    <th>Best Streak</th>
+                    <th>Last Played</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in streaks %}
+                <tr class="{% if s.current_streak >= 3 %}highlight{% endif %}">
+                    <td class="player-name-cell">
+                        <a href="/player/{{ s.player }}">{{ s.player }}</a>
+                    </td>
+                    <td class="streak-value">{{ s.current_streak }} day{{ 's' if s.current_streak != 1 else '' }}</td>
+                    <td class="streak-value">{{ s.best_streak }} day{{ 's' if s.best_streak != 1 else '' }}</td>
+                    <td>{{ s.last_played }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-state">No streak data yet.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
