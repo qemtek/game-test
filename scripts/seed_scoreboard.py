@@ -80,6 +80,33 @@ def seed_scores(conn):
     print(f"  Scores: inserted {inserted} rows (skipped duplicates)")
 
 
+def seed_streak_scores(conn):
+    """Insert multi-day scores so some players have streaks >= 3."""
+    today = datetime.now(timezone.utc).date()
+    streak_players = [
+        ("PixelKnight",  [7100, 7300, 7500, 7200, 7600]),  # 5-day streak
+        ("NeonRacer",    [6200, 6400, 6100, 6500]),          # 4-day streak
+        ("GhostByte",    [5500, 5700, 5300]),                # 3-day streak
+    ]
+    inserted = 0
+    for name, scores in streak_players:
+        for i, score in enumerate(scores):
+            day = today - timedelta(days=len(scores) - 1 - i)
+            created_at = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc).isoformat()
+            existing = conn.execute(
+                "SELECT id FROM scores WHERE name = ? AND date(created_at) = date(?)",
+                (name, created_at),
+            ).fetchone()
+            if existing is None:
+                conn.execute(
+                    "INSERT INTO scores (name, score, created_at) VALUES (?, ?, ?)",
+                    (name, score, created_at),
+                )
+                inserted += 1
+    conn.commit()
+    print(f"  Streak scores: inserted {inserted} rows for streak players")
+
+
 def seed_tournament(conn):
     now = datetime.now(timezone.utc)
     starts_at = (now - timedelta(hours=1)).isoformat()
@@ -144,6 +171,7 @@ def main():
     conn = get_conn()
     try:
         seed_scores(conn)
+        seed_streak_scores(conn)
         tid = seed_tournament(conn)
         seed_entries(conn, tid)
         print("Done.")
