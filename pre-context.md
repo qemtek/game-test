@@ -1,3 +1,9 @@
+---
+noteId: "40b8377037bc11f19682db1af2e416db"
+tags: []
+
+---
+
 app.py (648L): all routes + logic. 24 existing routes. Pattern: @app.route, jsonify, with database.get_db() as conn, raw SQL, dict(row)
 database.py (44L): get_db(), init_db(). SQLite
 test_api_scores.py (2043L): main test file. Run: python -m pytest test_api_scores.py -x -q

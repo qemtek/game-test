@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ player_name }} — Player Profile</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .profile-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .player-heading {
+            color: #4ade80;
+            font-size: 1.6rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .section-title {
+            color: #4ade80;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-box {
+            background: #0f172a;
+            border: 1px solid #2d2d4e;
+            padding: 0.75rem 1.25rem;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            color: #4ade80;
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .scores-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .scores-table th,
+        .scores-table td {
+            padding: 0.5rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #2d2d4e;
+            font-size: 0.9rem;
+        }
+
+        .scores-table th {
+            color: #6b7280;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .scores-table td {
+            color: #e0e0e0;
+        }
+
+        .scores-table td:nth-child(1) {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            color: #6b7280;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        a.nav-link {
+            color: #4ade80;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        a.nav-link:hover {
+            color: #86efac;
+        }
+
+        .not-found-msg {
+            color: #6b7280;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="player-heading">{{ player_name }}</h1>
+    <p class="subtitle"><a href="/" class="nav-link">← Back to Home</a></p>
+
+    {% if not_found %}
+        <p class="not-found-msg">No scores found for player <strong>{{ player_name }}</strong>.</p>
+    {% else %}
+    <div class="profile-container">
+
+        <!-- Stats Summary -->
+        <div class="section">
+            <h2 class="section-title">Player Stats</h2>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Rank</div>
+                    <div class="stat-value">#{{ rank }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Total Games</div>
+                    <div class="stat-value">{{ total_games }}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Avg Score</div>
+                    <div class="stat-value">{{ avg_score }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top 5 Scores Table -->
+        <div class="section">
+            <h2 class="section-title">Top Scores</h2>
+            <table class="scores-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if top_scores %}
+                        {% for entry in top_scores %}
+                        <tr>
+                            <td>#{{ entry.rank }}</td>
+                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.date }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="3" class="empty-state">No scores yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+    {% endif %}
+</body>
+</html>

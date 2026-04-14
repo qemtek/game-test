@@ -2537,3 +2537,201 @@ class TestStreaksPage:
         """PARE-69: POST /streaks is not a valid endpoint — expect 405."""
         resp = client.post("/streaks", json={})
         assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-75 — Player profile page with stats
+# ---------------------------------------------------------------------------
+
+class TestApiPlayerProfile:
+    """Tests for GET /api/player/<name>/profile [PARE-75]."""
+
+    def test_returns_200(self, client):
+        """PARE-75: known player returns 200."""
+        post_score(client, "Alice", 500)
+        resp = client.get("/api/player/Alice/profile")
+        assert resp.status_code == 200
+
+    def test_nonexistent_player_returns_404(self, client):
+        """PARE-75: unknown player returns 404."""
+        resp = client.get("/api/player/Ghost/profile")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_response_fields(self, client):
+        """PARE-75: response has name, rank, total_games, avg_score, top_scores."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert set(data.keys()) == {"name", "rank", "total_games", "avg_score", "top_scores"}
+
+    def test_name_matches(self, client):
+        """PARE-75: returned name matches queried player."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert data["name"] == "Alice"
+
+    def test_rank_single_player(self, client):
+        """PARE-75: only player in DB gets rank 1."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert data["rank"] == 1
+
+    def test_rank_ordering(self, client):
+        """PARE-75: rank reflects position by best score."""
+        post_score(client, "Alice", 1000)
+        post_score(client, "Bob", 500)
+        alice = client.get("/api/player/Alice/profile").get_json()
+        bob = client.get("/api/player/Bob/profile").get_json()
+        assert alice["rank"] == 1
+        assert bob["rank"] == 2
+
+    def test_total_games_correct(self, client):
+        """PARE-75: total_games reflects number of scores."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert data["total_games"] == 3
+
+    def test_avg_score_correct(self, client):
+        """PARE-75: avg_score is mean of all scores."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert abs(data["avg_score"] - 200.0) < 0.01
+
+    def test_top_scores_is_list(self, client):
+        """PARE-75: top_scores is a list."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert isinstance(data["top_scores"], list)
+
+    def test_top_scores_entry_fields(self, client):
+        """PARE-75: each top_scores entry has rank, score, date."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert len(data["top_scores"]) == 1
+        assert set(data["top_scores"][0].keys()) == {"rank", "score", "date"}
+
+    def test_top_scores_capped_at_5(self, client):
+        """PARE-75: top_scores has at most 5 entries."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert len(data["top_scores"]) <= 5
+
+    def test_top_scores_ordered_by_score_desc(self, client):
+        """PARE-75: top_scores entries are ordered highest score first."""
+        for s in [100, 500, 300, 200, 400]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        scores = [e["score"] for e in data["top_scores"]]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_top_scores_rank_sequential(self, client):
+        """PARE-75: top_scores ranks are 1, 2, 3, ..."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        ranks = [e["rank"] for e in data["top_scores"]]
+        assert ranks == list(range(1, len(ranks) + 1))
+
+    def test_only_own_scores_counted(self, client):
+        """PARE-75: stats exclude other players' scores."""
+        post_score(client, "Alice", 300)
+        post_score(client, "Bob", 999)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert data["total_games"] == 1
+        assert data["top_scores"][0]["score"] == 300
+
+    def test_returns_json_content_type(self, client):
+        """PARE-75: Content-Type is application/json."""
+        post_score(client, "Alice", 100)
+        resp = client.get("/api/player/Alice/profile")
+        assert "application/json" in resp.content_type
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-75: POST /api/player/<name>/profile is not valid — expect 405."""
+        post_score(client, "Alice", 100)
+        resp = client.post("/api/player/Alice/profile", json={})
+        assert resp.status_code == 405
+
+
+class TestPlayerProfilePage:
+    """Tests for GET /player/<name>/profile HTML page [PARE-75]."""
+
+    def test_returns_200(self, client):
+        """PARE-75: /player/<name>/profile returns 200 for known player."""
+        post_score(client, "Alice", 500)
+        resp = client.get("/player/Alice/profile")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-75: content-type is text/html."""
+        post_score(client, "Alice", 500)
+        resp = client.get("/player/Alice/profile")
+        assert "text/html" in resp.content_type
+
+    def test_contains_player_name_heading(self, client):
+        """PARE-75: page contains player name in heading."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "Alice" in body
+
+    def test_has_title(self, client):
+        """PARE-75: page has a <title> tag."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_has_back_link(self, client):
+        """PARE-75: page has a link back to home."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body
+
+    def test_shows_rank(self, client):
+        """PARE-75: page displays overall rank."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "Rank" in body or "rank" in body
+
+    def test_shows_total_games(self, client):
+        """PARE-75: page displays total games."""
+        for s in [100, 200]:
+            post_score(client, "Alice", s)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "Total Games" in body or "total" in body.lower()
+
+    def test_shows_avg_score(self, client):
+        """PARE-75: page displays average score."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "Avg" in body or "avg" in body.lower() or "Average" in body
+
+    def test_shows_top_scores_table(self, client):
+        """PARE-75: page contains a top scores table."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "<table" in body
+        assert "300" in body
+
+    def test_top_scores_limited_to_5(self, client):
+        """PARE-75: only top-5 scores appear in table rows (at most 5 data rows)."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "Alice", s)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        # 100 and 200 are not top-5 out of 7 scores
+        assert "100" not in body or body.count("<tr") <= 7
+
+    def test_nonexistent_player_returns_200_not_found(self, client):
+        """PARE-75: unknown player returns 200 with not-found message."""
+        resp = client.get("/player/Ghost/profile")
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "Ghost" in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-75: POST /player/<name>/profile is not valid — expect 405."""
+        resp = client.post("/player/Alice/profile", json={})
+        assert resp.status_code == 405
