@@ -430,11 +430,20 @@ def scoreboard():
 # PARE-52 — Individual player history page
 # ---------------------------------------------------------------------------
 
+def _get_player_rank(conn, best_score):
+    """Return rank (1-based) of a player by best_score among all players."""
+    row = conn.execute(
+        'SELECT COUNT(*) + 1 AS rank FROM (SELECT name, MAX(score) AS best FROM scores GROUP BY name) WHERE best > ?',
+        (best_score,)
+    ).fetchone()
+    return row['rank']
+
+
 @app.route('/api/player/<name>', methods=['GET'])
 def get_player_history(name):
     with database.get_db() as conn:
         scores_rows = conn.execute(
-            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY score DESC',
             (name,)
         ).fetchall()
 
@@ -443,15 +452,24 @@ def get_player_history(name):
 
         scores_list = [dict(row) for row in scores_rows]
         total_games = len(scores_list)
-        best_score = max(r['score'] for r in scores_list)
-        average_score = sum(r['score'] for r in scores_list) / total_games
+        best_score = scores_list[0]['score']
+        avg_score = round(sum(r['score'] for r in scores_list) / total_games, 2)
+        rank = _get_player_rank(conn, best_score)
+
+        top_scores = []
+        for i, entry in enumerate(scores_list[:5]):
+            top_scores.append({
+                "rank": i + 1,
+                "score": entry['score'],
+                "date": entry['created_at'],
+            })
 
     return jsonify({
         "name": name,
-        "scores": scores_list,
+        "rank": rank,
         "total_games": total_games,
-        "best_score": best_score,
-        "average_score": round(average_score, 2),
+        "avg_score": avg_score,
+        "top_scores": top_scores,
     })
 
 
@@ -459,27 +477,31 @@ def get_player_history(name):
 def player_page(name):
     with database.get_db() as conn:
         scores_rows = conn.execute(
-            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY created_at DESC',
+            'SELECT score, created_at FROM scores WHERE name = ? ORDER BY score DESC',
             (name,)
         ).fetchall()
 
         if not scores_rows:
             return render_template('player.html', player_name=name, not_found=True,
-                                   scores=[], total_games=0, best_score=0, average_score=0)
+                                   scores=[], total_games=0, best_score=0, average_score=0, rank=0)
 
         scores_list = [dict(row) for row in scores_rows]
         total_games = len(scores_list)
-        best_score = max(r['score'] for r in scores_list)
+        best_score = scores_list[0]['score']
         average_score = round(sum(r['score'] for r in scores_list) / total_games, 2)
+        rank = _get_player_rank(conn, best_score)
+        top_scores = scores_list[:5]
 
     return render_template(
         'player.html',
         player_name=name,
         not_found=False,
         scores=scores_list,
+        top_scores=top_scores,
         total_games=total_games,
         best_score=best_score,
         average_score=average_score,
+        rank=rank,
     )
 
 

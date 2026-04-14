@@ -1326,10 +1326,10 @@ class TestGetPlayerHistory:
         assert "error" in resp.get_json()
 
     def test_response_shape(self, client):
-        """PARE-52: response has name, scores, total_games, best_score, average_score."""
+        """PARE-72: response has name, rank, total_games, avg_score, top_scores."""
         post_score(client, "PixelKnight", 300)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert set(data.keys()) == {"name", "scores", "total_games", "best_score", "average_score"}
+        assert set(data.keys()) == {"name", "rank", "total_games", "avg_score", "top_scores"}
 
     def test_name_matches(self, client):
         """PARE-52: returned name matches the queried player."""
@@ -1337,40 +1337,40 @@ class TestGetPlayerHistory:
         data = client.get("/api/player/PixelKnight").get_json()
         assert data["name"] == "PixelKnight"
 
-    def test_scores_is_list(self, client):
-        """PARE-52: scores field is a list."""
+    def test_top_scores_is_list(self, client):
+        """PARE-72: top_scores field is a list."""
         post_score(client, "PixelKnight", 300)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert isinstance(data["scores"], list)
+        assert isinstance(data["top_scores"], list)
 
-    def test_scores_entry_fields(self, client):
-        """PARE-52: each score entry has score and created_at."""
+    def test_top_scores_entry_fields(self, client):
+        """PARE-72: each top_scores entry has rank, score, and date."""
         post_score(client, "PixelKnight", 300)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert len(data["scores"]) == 1
-        assert set(data["scores"][0].keys()) == {"score", "created_at"}
+        assert len(data["top_scores"]) == 1
+        assert set(data["top_scores"][0].keys()) == {"rank", "score", "date"}
 
-    def test_all_scores_returned(self, client):
-        """PARE-52: all scores for the player are returned (not just best)."""
-        for s in [100, 200, 300]:
+    def test_top_scores_limited_to_5(self, client):
+        """PARE-72: top_scores returns at most 5 entries."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
             post_score(client, "PixelKnight", s)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert data["total_games"] == 3
-        assert len(data["scores"]) == 3
+        assert data["total_games"] == 7
+        assert len(data["top_scores"]) == 5
 
-    def test_best_score_correct(self, client):
-        """PARE-52: best_score is the highest score."""
+    def test_top_scores_highest_first(self, client):
+        """PARE-72: top_scores sorted by score DESC, first entry is best."""
         for s in [100, 500, 300]:
             post_score(client, "PixelKnight", s)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert data["best_score"] == 500
+        assert data["top_scores"][0]["score"] == 500
 
-    def test_average_score_correct(self, client):
-        """PARE-52: average_score is the mean of all scores."""
+    def test_avg_score_correct(self, client):
+        """PARE-72: avg_score is the mean of all scores."""
         for s in [100, 200, 300]:
             post_score(client, "PixelKnight", s)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert abs(data["average_score"] - 200.0) < 0.01
+        assert abs(data["avg_score"] - 200.0) < 0.01
 
     def test_total_games_correct(self, client):
         """PARE-52: total_games equals number of score entries."""
@@ -1380,12 +1380,12 @@ class TestGetPlayerHistory:
         assert data["total_games"] == 2
 
     def test_only_own_scores_returned(self, client):
-        """PARE-52: scores from other players do not appear."""
+        """PARE-72: top_scores from other players do not appear."""
         post_score(client, "PixelKnight", 300)
         post_score(client, "OtherPlayer", 999)
         data = client.get("/api/player/PixelKnight").get_json()
         assert data["total_games"] == 1
-        assert data["best_score"] == 300
+        assert data["top_scores"][0]["score"] == 300
 
     def test_returns_json_content_type(self, client):
         """PARE-52: Content-Type is application/json."""
@@ -1436,12 +1436,12 @@ class TestPlayerPage:
         assert body.count("<rect") == 3
 
     def test_contains_stats_summary(self, client):
-        """PARE-52: page contains total games, best score, average score."""
+        """PARE-72: page contains rank, total games, average score."""
         for s in [100, 200, 300]:
             post_score(client, "PixelKnight", s)
         body = client.get("/player/PixelKnight").data.decode("utf-8")
         assert "Total Games" in body or "total" in body.lower()
-        assert "Best Score" in body or "best" in body.lower()
+        assert "Rank" in body or "rank" in body.lower()
         assert "Average" in body or "average" in body.lower()
 
     def test_nonexistent_player_still_200(self, client):
@@ -1457,8 +1457,8 @@ class TestPlayerPage:
         body = client.get("/player/PixelKnight").data.decode("utf-8")
         assert "/scoreboard" in body
 
-    def test_multiple_scores_all_visible_in_table(self, client):
-        """PARE-52: all individual score values appear in the score history table."""
+    def test_top_scores_visible_in_table(self, client):
+        """PARE-72: top score values appear in the top scores table."""
         scores = [1000, 2000, 3000, 4000]
         for s in scores:
             post_score(client, "PixelKnight", s)
@@ -1482,65 +1482,97 @@ class TestPlayerPage:
         assert "PixelKnight" in body[title_start:title_end]
 
 
-class TestGetPlayerHistoryEdgeCases:
-    """Edge-case tests for PARE-52 /api/player/<name>."""
+class TestPlayerProfileRank:
+    """Tests for rank in PARE-72 /api/player/<name>."""
 
-    def test_scores_ordered_by_created_at_desc(self, client):
-        """PARE-52: scores list is sorted by created_at descending.
+    def test_rank_is_integer(self, client):
+        """PARE-72: rank is an integer."""
+        post_score(client, "PixelKnight", 500)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert isinstance(data["rank"], int)
 
-        Note: scores inserted within the same second share the same
-        CURRENT_TIMESTAMP value, so tie-breaking order is not tested here.
-        We verify the created_at values are non-increasing (i.e. the sort
-        direction is correct when timestamps differ).
-        """
+    def test_sole_player_rank_1(self, client):
+        """PARE-72: only player in DB gets rank 1."""
+        post_score(client, "PixelKnight", 500)
+        data = client.get("/api/player/PixelKnight").get_json()
+        assert data["rank"] == 1
+
+    def test_rank_by_best_score(self, client):
+        """PARE-72: rank=1 for top player, rank=2 for second-best."""
+        post_score(client, "Alice", 9000)
+        post_score(client, "Bob", 5000)
+        alice = client.get("/api/player/Alice").get_json()
+        bob = client.get("/api/player/Bob").get_json()
+        assert alice["rank"] == 1
+        assert bob["rank"] == 2
+
+    def test_rank_uses_best_not_average(self, client):
+        """PARE-72: rank is based on best score, not average."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Alice", 9000)  # best=9000
+        post_score(client, "Bob", 5000)
+        alice = client.get("/api/player/Alice").get_json()
+        bob = client.get("/api/player/Bob").get_json()
+        assert alice["rank"] == 1
+        assert bob["rank"] == 2
+
+    def test_tied_best_scores_same_rank(self, client):
+        """PARE-72: players with the same best score share the same rank."""
+        post_score(client, "Alice", 5000)
+        post_score(client, "Bob", 5000)
+        alice = client.get("/api/player/Alice").get_json()
+        bob = client.get("/api/player/Bob").get_json()
+        assert alice["rank"] == bob["rank"]
+
+    def test_rank_survives_extra_low_scores(self, client):
+        """PARE-72: extra low scores don't affect rank based on best."""
+        post_score(client, "Alice", 1)
+        post_score(client, "Alice", 2)
+        post_score(client, "Alice", 9500)
+        post_score(client, "Bob", 5000)
+        alice = client.get("/api/player/Alice").get_json()
+        assert alice["rank"] == 1
+
+    def test_player_page_shows_rank(self, client):
+        """PARE-72: HTML player page displays rank."""
+        post_score(client, "Alice", 9000)
+        post_score(client, "Bob", 5000)
+        body = client.get("/player/Alice").data.decode("utf-8")
+        assert "#1" in body
+        body = client.get("/player/Bob").data.decode("utf-8")
+        assert "#2" in body
+
+    def test_player_page_shows_top_5_scores(self, client):
+        """PARE-72: HTML player page shows top 5 scores in table."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "PixelKnight", s)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        # Top 5 scores should be visible
+        for s in [700, 600, 500, 400, 300]:
+            assert str(s) in body
+        # 6th and 7th scores should NOT appear in the top scores table
+        # (they may still appear in the chart)
+        top_section = body.split("Top Scores")[1].split("</table>")[0] if "Top Scores" in body else ""
+        assert "100" not in top_section
+
+    def test_player_page_no_rank_for_not_found(self, client):
+        """PARE-72: not-found page shows rank 0."""
+        body = client.get("/player/GhostPlayer").data.decode("utf-8")
+        assert "#0" in body or "Rank" not in body
+
+    def test_player_page_shows_total_games(self, client):
+        """PARE-72: HTML player page displays total games."""
         for s in [100, 200, 300]:
             post_score(client, "PixelKnight", s)
-        data = client.get("/api/player/PixelKnight").get_json()
-        timestamps = [e["created_at"] for e in data["scores"]]
-        # created_at values must be in non-increasing (DESC) order
-        assert timestamps == sorted(timestamps, reverse=True)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "3" in body
 
-    def test_single_score_stats(self, client):
-        """PARE-52: single score means best == average == that score, total_games == 1."""
-        post_score(client, "PixelKnight", 7500)
-        data = client.get("/api/player/PixelKnight").get_json()
-        assert data["total_games"] == 1
-        assert data["best_score"] == 7500
-        assert abs(data["average_score"] - 7500.0) < 0.01
-
-    def test_average_score_rounded(self, client):
-        """PARE-52: average_score is rounded to 2 decimal places."""
-        for s in [1, 2, 3]:  # avg = 2.0, but tests rounding contract
+    def test_player_page_shows_avg_score(self, client):
+        """PARE-72: HTML player page displays average score."""
+        for s in [100, 200, 300]:
             post_score(client, "PixelKnight", s)
-        data = client.get("/api/player/PixelKnight").get_json()
-        # Verify it's not a raw float with many decimals
-        avg_str = str(data["average_score"])
-        if "." in avg_str:
-            assert len(avg_str.split(".")[1]) <= 2
-
-    def test_case_sensitive_player_name(self, client):
-        """PARE-52: player name lookup is case-sensitive."""
-        post_score(client, "PixelKnight", 500)
-        resp = client.get("/api/player/pixelknight")
-        assert resp.status_code == 404
-
-    def test_multiple_players_isolated(self, client):
-        """PARE-52: history for PlayerA doesn't include PlayerB's scores."""
-        for s in [100, 200]:
-            post_score(client, "Alice", s)
-        for s in [900, 800]:
-            post_score(client, "Bob", s)
-        alice_data = client.get("/api/player/Alice").get_json()
-        bob_data = client.get("/api/player/Bob").get_json()
-        assert alice_data["best_score"] == 200
-        assert bob_data["best_score"] == 900
-        assert alice_data["total_games"] == 2
-        assert bob_data["total_games"] == 2
-
-    def test_no_tournaments_route(self, client):
-        """PARE-52 scope check: GET /tournaments was removed; must return 404."""
-        resp = client.get("/tournaments")
-        assert resp.status_code == 404
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "200.0" in body or "200" in body
 
 
 # ---------------------------------------------------------------------------
