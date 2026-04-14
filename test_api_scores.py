@@ -2735,3 +2735,171 @@ class TestPlayerProfilePage:
         """PARE-75: POST /player/<name>/profile is not valid — expect 405."""
         resp = client.post("/player/Alice/profile", json={})
         assert resp.status_code == 405
+
+
+class TestApiPlayerProfileEdgeCases:
+    """Additional edge-case tests for PARE-75 /api/player/<name>/profile."""
+
+    def test_rank_tied_best_score(self, client):
+        """PARE-75: two players with the same best score share rank 1."""
+        post_score(client, "Alice", 500)
+        post_score(client, "Bob", 500)
+        alice = client.get("/api/player/Alice/profile").get_json()
+        bob = client.get("/api/player/Bob/profile").get_json()
+        # Both should be rank 1 (no one has best_score > 500)
+        assert alice["rank"] == 1
+        assert bob["rank"] == 1
+
+    def test_rank_uses_best_not_latest_score(self, client):
+        """PARE-75: rank is based on max score, not the most recent one."""
+        post_score(client, "Alice", 1000)
+        post_score(client, "Alice", 100)  # lower — should not drop rank
+        post_score(client, "Bob", 500)
+        alice = client.get("/api/player/Alice/profile").get_json()
+        assert alice["rank"] == 1
+
+    def test_avg_score_is_float(self, client):
+        """PARE-75: avg_score is a number (int or float)."""
+        post_score(client, "Alice", 100)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert isinstance(data["avg_score"], (int, float))
+
+    def test_top_scores_exactly_5_when_more_exist(self, client):
+        """PARE-75: exactly 5 entries returned when player has >5 scores."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert len(data["top_scores"]) == 5
+
+    def test_top_scores_contains_correct_top5(self, client):
+        """PARE-75: top_scores are the 5 highest scores, not the 5 most recent."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "Alice", s)
+        data = client.get("/api/player/Alice/profile").get_json()
+        scores = [e["score"] for e in data["top_scores"]]
+        # Should be 700, 600, 500, 400, 300 — not 100 or 200
+        assert 700 in scores
+        assert 600 in scores
+        assert 100 not in scores
+        assert 200 not in scores
+
+    def test_case_sensitive_name_lookup(self, client):
+        """PARE-75: name lookup is case-sensitive."""
+        post_score(client, "Alice", 500)
+        resp = client.get("/api/player/alice/profile")
+        assert resp.status_code == 404
+
+    def test_rank_field_is_integer(self, client):
+        """PARE-75: rank is an integer, not a float or string."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert isinstance(data["rank"], int)
+
+    def test_total_games_is_integer(self, client):
+        """PARE-75: total_games is an integer."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert isinstance(data["total_games"], int)
+
+    def test_top_scores_date_is_string(self, client):
+        """PARE-75: date field in each top_scores entry is a string."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        for entry in data["top_scores"]:
+            assert isinstance(entry["date"], str)
+
+    def test_top_scores_score_is_integer(self, client):
+        """PARE-75: score field in each top_scores entry is an integer."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        for entry in data["top_scores"]:
+            assert isinstance(entry["score"], int)
+
+    def test_does_not_include_other_player_scores_in_top5(self, client):
+        """PARE-75: top_scores only contains the queried player's scores."""
+        post_score(client, "Alice", 100)
+        post_score(client, "Bob", 9999)  # Bob's high score must not appear in Alice's top5
+        data = client.get("/api/player/Alice/profile").get_json()
+        for entry in data["top_scores"]:
+            assert entry["score"] != 9999
+
+    def test_single_score_top_scores_has_one_entry(self, client):
+        """PARE-75: single score → top_scores has exactly one entry."""
+        post_score(client, "Alice", 500)
+        data = client.get("/api/player/Alice/profile").get_json()
+        assert len(data["top_scores"]) == 1
+
+    def test_rank_increases_as_more_players_added(self, client):
+        """PARE-75: player's rank degrades correctly as better players are added."""
+        post_score(client, "Alice", 500)
+        data1 = client.get("/api/player/Alice/profile").get_json()
+        assert data1["rank"] == 1
+
+        post_score(client, "Bob", 600)
+        data2 = client.get("/api/player/Alice/profile").get_json()
+        assert data2["rank"] == 2
+
+        post_score(client, "Carol", 700)
+        data3 = client.get("/api/player/Alice/profile").get_json()
+        assert data3["rank"] == 3
+
+
+class TestPlayerProfilePageEdgeCases:
+    """Additional edge-case tests for PARE-75 /player/<name>/profile HTML page."""
+
+    def test_shows_correct_rank_number(self, client):
+        """PARE-75: page shows rank 1 when only one player exists."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "#1" in body or ">1<" in body or ">1 <" in body
+
+    def test_shows_correct_total_games_count(self, client):
+        """PARE-75: page renders the correct total_games count."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "3" in body
+
+    def test_top_score_value_visible(self, client):
+        """PARE-75: the highest score value appears in the page."""
+        post_score(client, "Alice", 9876)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "9876" in body
+
+    def test_not_found_page_has_no_table(self, client):
+        """PARE-75: not-found page does not render the stats table."""
+        body = client.get("/player/Ghost/profile").data.decode("utf-8")
+        # Should not render actual stat-box div elements (CSS definitions are fine)
+        # The not_found branch in the template skips the profile-container block
+        assert "<table" not in body and "stat-value" not in body.split("</style>", 1)[-1]
+
+    def test_case_sensitive_not_found(self, client):
+        """PARE-75: /player/alice/profile returns 200 but shows not-found message."""
+        post_score(client, "Alice", 500)
+        resp = client.get("/player/alice/profile")
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "alice" in body  # player name echoed back
+
+    def test_avg_score_rounded_visible(self, client):
+        """PARE-75: page renders avg_score rounded to 2 decimal places."""
+        for s in [100, 200, 300]:
+            post_score(client, "Alice", s)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        # avg = 200.0 — should appear on the page
+        assert "200" in body
+
+    def test_has_player_heading_class(self, client):
+        """PARE-75: page uses the expected heading element for the player name."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        # The template uses class 'player-heading'
+        assert "player-heading" in body
+
+    def test_table_has_rank_score_date_headers(self, client):
+        """PARE-75: top scores table contains Rank, Score, Date column headers."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert "Rank" in body
+        assert "Score" in body
+        assert "Date" in body

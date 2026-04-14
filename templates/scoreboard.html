@@ -11,6 +11,89 @@
             max-width: 800px;
         }
 
+        .podium-section {
+            margin-bottom: 2.5rem;
+            text-align: center;
+        }
+
+        .podium-section h2 {
+            color: #4ade80;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #2d2d4e;
+            padding-bottom: 0.5rem;
+        }
+
+        .podium {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .podium-col {
+            background: #1a1a2e;
+            border: 1px solid #2d2d4e;
+            border-radius: 4px 4px 0 0;
+            padding: 0.75rem 1.25rem;
+            min-width: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            box-sizing: border-box;
+        }
+
+        .podium-col .podium-rank {
+            font-size: 2rem;
+            font-weight: bold;
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+
+        .podium-col .podium-name {
+            font-size: 0.85rem;
+            color: #e0e0e0;
+            margin-bottom: 0.2rem;
+            word-break: break-all;
+        }
+
+        .podium-col .podium-score {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .podium-col.first {
+            height: 120px;
+            border-color: #fbbf24;
+            order: 2;
+        }
+
+        .podium-col.first .podium-rank { color: #fbbf24; }
+        .podium-col.first .podium-score { color: #fbbf24; }
+
+        .podium-col.second {
+            height: 90px;
+            border-color: #9ca3af;
+            order: 1;
+        }
+
+        .podium-col.second .podium-rank { color: #9ca3af; }
+        .podium-col.second .podium-score { color: #9ca3af; }
+
+        .podium-col.third {
+            height: 70px;
+            border-color: #b45309;
+            order: 3;
+        }
+
+        .podium-col.third .podium-rank { color: #b45309; }
+        .podium-col.third .podium-score { color: #b45309; }
+
         .scoreboard-section {
             margin-bottom: 2rem;
         }
@@ -122,6 +205,35 @@
     <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
 
     <div class="scoreboard-container">
+
+        <!-- Podium -->
+        <div class="podium-section">
+            <h2>TOP PLAYERS</h2>
+            <div class="podium" id="podium">
+                {% set top_scores = scores[:3] if scores else [] %}
+                {% if top_scores|length >= 2 %}
+                <div class="podium-col second">
+                    <div class="podium-rank">2</div>
+                    <div class="podium-name">{{ top_scores[1].name }}</div>
+                    <div class="podium-score">{{ top_scores[1].score }}</div>
+                </div>
+                {% endif %}
+                {% if top_scores|length >= 1 %}
+                <div class="podium-col first">
+                    <div class="podium-rank">1</div>
+                    <div class="podium-name">{{ top_scores[0].name }}</div>
+                    <div class="podium-score">{{ top_scores[0].score }}</div>
+                </div>
+                {% endif %}
+                {% if top_scores|length >= 3 %}
+                <div class="podium-col third">
+                    <div class="podium-rank">3</div>
+                    <div class="podium-name">{{ top_scores[2].name }}</div>
+                    <div class="podium-score">{{ top_scores[2].score }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
 
         <!-- Global Top-10 -->
         <div class="scoreboard-section">
@@ -262,11 +374,48 @@
                 .replace(/"/g, '&quot;');
         }
 
+        function renderPodium(scores) {
+            const podium = document.getElementById('podium');
+            const top3 = scores.slice(0, 3);
+            if (top3.length === 0) {
+                podium.innerHTML = '';
+                return;
+            }
+            let html = '';
+            // 2nd first (order 1)
+            if (top3.length >= 2) {
+                html += `<div class="podium-col second">
+                    <div class="podium-rank">2</div>
+                    <div class="podium-name">${escHtml(top3[1].name)}</div>
+                    <div class="podium-score">${top3[1].score}</div>
+                </div>`;
+            }
+            // 1st (order 2)
+            if (top3.length >= 1) {
+                html += `<div class="podium-col first">
+                    <div class="podium-rank">1</div>
+                    <div class="podium-name">${escHtml(top3[0].name)}</div>
+                    <div class="podium-score">${top3[0].score}</div>
+                </div>`;
+            }
+            // 3rd (order 3)
+            if (top3.length >= 3) {
+                html += `<div class="podium-col third">
+                    <div class="podium-rank">3</div>
+                    <div class="podium-name">${escHtml(top3[2].name)}</div>
+                    <div class="podium-score">${top3[2].score}</div>
+                </div>`;
+            }
+            podium.innerHTML = html;
+        }
+
         function refresh() {
             fetch('/api/scoreboard')
                 .then(r => r.json())
                 .then(data => {
-                    renderScores(data.scores || []);
+                    const scores = data.scores || [];
+                    renderScores(scores);
+                    renderPodium(scores);
                     renderTournament(data.active_tournament);
                 })
                 .catch(() => { /* silently ignore network errors */ });
