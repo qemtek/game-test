@@ -808,6 +808,128 @@ def streaks_page():
     return render_template('streaks.html', streaks=streaks)
 
 
+# ---------------------------------------------------------------------------
+# PARE-75 — Player profile page with stats
+# ---------------------------------------------------------------------------
+
+@app.route('/api/player/<name>/profile', methods=['GET'])
+def get_player_profile_stats(name):
+    """Return player profile JSON: name, rank, total_games, avg_score, top_scores."""
+    with database.get_db() as conn:
+        player_row = conn.execute('''
+            SELECT
+                name,
+                MAX(score)   AS best_score,
+                COUNT(*)     AS total_games,
+                AVG(score)   AS avg_score
+            FROM scores
+            WHERE name = ?
+            GROUP BY name
+        ''', (name,)).fetchone()
+
+        if player_row is None:
+            return jsonify({"error": "player not found"}), 404
+
+        rank_row = conn.execute('''
+            SELECT COUNT(*) + 1 AS rank
+            FROM (
+                SELECT name, MAX(score) AS best_score
+                FROM scores
+                GROUP BY name
+            )
+            WHERE best_score > ?
+        ''', (player_row['best_score'],)).fetchone()
+
+        top_rows = conn.execute('''
+            SELECT score, created_at
+            FROM scores
+            WHERE name = ?
+            ORDER BY score DESC
+            LIMIT 5
+        ''', (name,)).fetchall()
+
+    top_scores = [
+        {
+            "rank": i + 1,
+            "score": r['score'],
+            "date": r['created_at'],
+        }
+        for i, r in enumerate(top_rows)
+    ]
+
+    return jsonify({
+        "name": player_row['name'],
+        "rank": rank_row['rank'],
+        "total_games": player_row['total_games'],
+        "avg_score": player_row['avg_score'],
+        "top_scores": top_scores,
+    })
+
+
+@app.route('/player/<name>/profile', methods=['GET'])
+def player_profile_page(name):
+    """HTML player profile page: heading, rank, total games, avg score, top-5 table."""
+    with database.get_db() as conn:
+        player_row = conn.execute('''
+            SELECT
+                name,
+                MAX(score)   AS best_score,
+                COUNT(*)     AS total_games,
+                AVG(score)   AS avg_score
+            FROM scores
+            WHERE name = ?
+            GROUP BY name
+        ''', (name,)).fetchone()
+
+        if player_row is None:
+            return render_template(
+                'player_profile.html',
+                player_name=name,
+                not_found=True,
+                rank=None,
+                total_games=0,
+                avg_score=0,
+                top_scores=[],
+            )
+
+        rank_row = conn.execute('''
+            SELECT COUNT(*) + 1 AS rank
+            FROM (
+                SELECT name, MAX(score) AS best_score
+                FROM scores
+                GROUP BY name
+            )
+            WHERE best_score > ?
+        ''', (player_row['best_score'],)).fetchone()
+
+        top_rows = conn.execute('''
+            SELECT score, created_at
+            FROM scores
+            WHERE name = ?
+            ORDER BY score DESC
+            LIMIT 5
+        ''', (name,)).fetchall()
+
+    top_scores = [
+        {
+            "rank": i + 1,
+            "score": r['score'],
+            "date": r['created_at'],
+        }
+        for i, r in enumerate(top_rows)
+    ]
+
+    return render_template(
+        'player_profile.html',
+        player_name=player_row['name'],
+        not_found=False,
+        rank=rank_row['rank'],
+        total_games=player_row['total_games'],
+        avg_score=round(player_row['avg_score'], 2),
+        top_scores=top_scores,
+    )
+
+
 if __name__ == '__main__':
     database.init_db()
     app.run(debug=True, port=5000)
