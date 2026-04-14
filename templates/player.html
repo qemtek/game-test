@@ -116,9 +116,31 @@
             color: #6b7280;
             margin-top: 1rem;
         }
+
+        .player-avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: #1a1a2e;
+            border: 2px solid #4ade80;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.75rem;
+        }
+
+        .player-avatar span {
+            color: #4ade80;
+            font-size: 1.6rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
+    {% set _words = player_name.split() %}
+    {% set _initials = (_words | map('first') | join)[0:2] | upper if _words | length > 1 else player_name[0:2] | upper %}
+    <div class="player-avatar"><span>{{ _initials }}</span></div>
     <h1 class="player-heading">{{ player_name }}</h1>
     <p class="subtitle"><a href="/scoreboard" class="nav-link">← Back to Scoreboard</a></p>
 
