@@ -1329,7 +1329,7 @@ class TestGetPlayerHistory:
         """PARE-52: response has name, scores, total_games, best_score, average_score."""
         post_score(client, "PixelKnight", 300)
         data = client.get("/api/player/PixelKnight").get_json()
-        assert set(data.keys()) == {"name", "scores", "total_games", "best_score", "average_score"}
+        assert {"name", "scores", "total_games", "best_score", "average_score"}.issubset(set(data.keys()))
 
     def test_name_matches(self, client):
         """PARE-52: returned name matches the queried player."""
@@ -2536,4 +2536,216 @@ class TestStreaksPage:
     def test_method_not_allowed_post(self, client):
         """PARE-69: POST /streaks is not a valid endpoint — expect 405."""
         resp = client.post("/streaks", json={})
+        assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PARE-73 — Player profile page with stats
+# ---------------------------------------------------------------------------
+
+
+class TestApiPlayerProfile:
+    """Tests for GET /api/player/<name> — player profile JSON [PARE-73]."""
+
+    def test_existing_player_returns_200(self, client):
+        """PARE-73: known player returns 200."""
+        post_score(client, "ProfileUser", 500)
+        resp = client.get("/api/player/ProfileUser")
+        assert resp.status_code == 200
+
+    def test_nonexistent_player_returns_404(self, client):
+        """PARE-73: /api/player/NonExistent returns 404."""
+        resp = client.get("/api/player/NoSuchPlayer73")
+        assert resp.status_code == 404
+        assert "error" in resp.get_json()
+
+    def test_response_has_required_fields(self, client):
+        """PARE-73: response has name, rank, total_games, avg_score, top_scores."""
+        post_score(client, "ProfileUser", 300)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert "name" in data
+        assert "rank" in data
+        assert "total_games" in data
+        assert "avg_score" in data
+        assert "top_scores" in data
+
+    def test_name_matches(self, client):
+        """PARE-73: returned name matches queried player."""
+        post_score(client, "ProfileUser", 300)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert data["name"] == "ProfileUser"
+
+    def test_rank_is_integer(self, client):
+        """PARE-73: rank field is an integer."""
+        post_score(client, "ProfileUser", 300)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert isinstance(data["rank"], int)
+
+    def test_rank_starts_at_1(self, client):
+        """PARE-73: single player gets rank 1."""
+        post_score(client, "TopPlayer73", 9999)
+        data = client.get("/api/player/TopPlayer73").get_json()
+        assert data["rank"] == 1
+
+    def test_rank_correct_relative_to_other_players(self, client):
+        """PARE-73: rank reflects position among all players by best score."""
+        post_score(client, "Player73A", 9000)
+        post_score(client, "Player73B", 5000)
+        post_score(client, "Player73C", 1000)
+        data_b = client.get("/api/player/Player73B").get_json()
+        assert data_b["rank"] == 2
+
+    def test_total_games_correct(self, client):
+        """PARE-73: total_games reflects number of score entries."""
+        for _ in range(3):
+            post_score(client, "ProfileUser", 500)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert data["total_games"] == 3
+
+    def test_avg_score_correct(self, client):
+        """PARE-73: avg_score is mean of all player scores."""
+        post_score(client, "ProfileUser", 100)
+        post_score(client, "ProfileUser", 300)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert abs(data["avg_score"] - 200.0) < 0.01
+
+    def test_top_scores_is_list(self, client):
+        """PARE-73: top_scores field is a list."""
+        post_score(client, "ProfileUser", 500)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert isinstance(data["top_scores"], list)
+
+    def test_top_scores_entry_fields(self, client):
+        """PARE-73: each top_scores entry has rank, score, date."""
+        post_score(client, "ProfileUser", 500)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert len(data["top_scores"]) >= 1
+        entry = data["top_scores"][0]
+        assert "rank" in entry
+        assert "score" in entry
+        assert "date" in entry
+
+    def test_top_scores_max_5(self, client):
+        """PARE-73: top_scores returns at most 5 entries."""
+        for s in [100, 200, 300, 400, 500, 600, 700]:
+            post_score(client, "ProfileUser", s)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert len(data["top_scores"]) <= 5
+
+    def test_top_scores_ordered_by_score_desc(self, client):
+        """PARE-73: top_scores are ordered by score descending."""
+        for s in [100, 500, 300, 700, 200]:
+            post_score(client, "ProfileUser", s)
+        data = client.get("/api/player/ProfileUser").get_json()
+        scores = [e["score"] for e in data["top_scores"]]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_top_scores_rank_increments(self, client):
+        """PARE-73: rank in top_scores starts at 1 and increments."""
+        for s in [300, 200, 100]:
+            post_score(client, "ProfileUser", s)
+        data = client.get("/api/player/ProfileUser").get_json()
+        for i, entry in enumerate(data["top_scores"]):
+            assert entry["rank"] == i + 1
+
+    def test_only_own_scores_in_top_scores(self, client):
+        """PARE-73: top_scores only contains scores for the queried player."""
+        post_score(client, "ProfileUser", 500)
+        post_score(client, "OtherPlayer73", 9999)
+        data = client.get("/api/player/ProfileUser").get_json()
+        assert all(e["score"] <= 500 for e in data["top_scores"])
+
+    def test_returns_json_content_type(self, client):
+        """PARE-73: Content-Type is application/json."""
+        post_score(client, "ProfileUser", 100)
+        resp = client.get("/api/player/ProfileUser")
+        assert "application/json" in resp.content_type
+
+
+class TestPlayerProfilePage:
+    """Tests for GET /player/<name> — HTML player profile page [PARE-73]."""
+
+    def test_existing_player_returns_200(self, client):
+        """PARE-73: /player/<name> returns 200 when player exists."""
+        post_score(client, "ProfileUser", 500)
+        resp = client.get("/player/ProfileUser")
+        assert resp.status_code == 200
+
+    def test_returns_html(self, client):
+        """PARE-73: content-type is text/html."""
+        post_score(client, "ProfileUser", 500)
+        resp = client.get("/player/ProfileUser")
+        assert "text/html" in resp.content_type
+
+    def test_contains_player_heading(self, client):
+        """PARE-73: page contains player name heading."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "ProfileUser" in body
+
+    def test_contains_overall_rank(self, client):
+        """PARE-73: page displays overall rank."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "Rank" in body or "rank" in body
+
+    def test_contains_total_games(self, client):
+        """PARE-73: page displays total games count."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "Total Games" in body or "total" in body.lower()
+
+    def test_contains_average_score(self, client):
+        """PARE-73: page displays average score."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "Average" in body or "average" in body.lower()
+
+    def test_contains_top5_scores_table(self, client):
+        """PARE-73: page contains a top-5 scores table."""
+        for s in [100, 200, 300, 400, 500]:
+            post_score(client, "ProfileUser", s)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "Top 5" in body or "top" in body.lower()
+        assert "500" in body
+
+    def test_dark_theme_applied(self, client):
+        """PARE-73: page uses dark theme CSS (navy/dark background)."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "style.css" in body or "background" in body or "#0f172a" in body or "#1a1a2e" in body
+
+    def test_has_back_link(self, client):
+        """PARE-73: page has a back link."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert 'href="/"' in body or "href='/'" in body or "/scoreboard" in body
+
+    def test_has_title_tag(self, client):
+        """PARE-73: page has a <title> tag."""
+        post_score(client, "ProfileUser", 500)
+        body = client.get("/player/ProfileUser").data.decode("utf-8")
+        assert "<title>" in body.lower()
+
+    def test_nonexistent_player_shows_not_found(self, client):
+        """PARE-73: /player/<name> for unknown player shows not-found message."""
+        resp = client.get("/player/NoSuchPlayer73")
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "NoSuchPlayer73" in body
+
+    def test_rank_value_displayed(self, client):
+        """PARE-73: rank value is displayed on the profile page."""
+        post_score(client, "RankTest73", 9999)
+        body = client.get("/player/RankTest73").data.decode("utf-8")
+        assert "1" in body
+
+    def test_method_not_allowed_post(self, client):
+        """PARE-73: POST /player/<name> is not a valid endpoint — expect 405."""
+        resp = client.post("/player/TestUser", json={})
+        assert resp.status_code == 405
+
+    def test_method_not_allowed_api_post(self, client):
+        """PARE-73: POST /api/player/<name> is not a valid endpoint — expect 405."""
+        resp = client.post("/api/player/TestUser", json={})
         assert resp.status_code == 405

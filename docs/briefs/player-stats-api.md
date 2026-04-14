@@ -1,3 +1,9 @@
+---
+noteId: "5f70400037bb11f19682db1af2e416db"
+tags: []
+
+---
+
 # Briefing: Player Stats API
 **Group:** pare/group-stats  
 **Branch:** pare/group-stats → development  
