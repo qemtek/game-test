@@ -139,7 +139,11 @@
 </head>
 <body>
     {% set _words = player_name.split() %}
-    {% set _initials = (_words | map('first') | join)[0:2] | upper if _words | length > 1 else player_name[0:2] | upper %}
+    {% if _words | length > 1 %}
+    {% set _initials = [_words[0][0], _words[1][0]] | join | upper %}
+    {% else %}
+    {% set _initials = player_name[0:2] | upper %}
+    {% endif %}
     <div class="player-avatar"><span>{{ _initials }}</span></div>
     <h1 class="player-heading">{{ player_name }}</h1>
     <p class="subtitle"><a href="/scoreboard" class="nav-link">← Back to Scoreboard</a></p>
