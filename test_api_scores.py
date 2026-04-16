@@ -2903,3 +2903,161 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ===========================================================================
+# T-01 — Active Nav Highlight
+# ===========================================================================
+
+NAV_PAGES = [
+    ("/", "Game"),
+    ("/scoreboard", "Scoreboard"),
+    ("/history", "History"),
+    ("/badges", "Badges"),
+    ("/about", "About"),
+]
+
+NAV_LINKS = ["Game", "Scoreboard", "History", "Badges", "About"]
+
+
+def _get_nav_html(body):
+    """Extract the <nav> block from rendered HTML."""
+    start = body.index('<nav')
+    end = body.index('</nav>') + len('</nav>')
+    return body[start:end]
+
+
+class TestActiveNavHighlight:
+    """T-01: shared nav bar with active-state styling on the current route."""
+
+    def test_nav_bar_present_on_index(self, client):
+        """T-01: index page includes a nav element with main-nav class."""
+        body = client.get("/").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    def test_nav_bar_present_on_scoreboard(self, client):
+        """T-01: scoreboard page includes the nav bar."""
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    def test_nav_bar_present_on_history(self, client):
+        """T-01: history page includes the nav bar."""
+        body = client.get("/history").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    def test_nav_bar_present_on_badges(self, client):
+        """T-01: badges page includes the nav bar."""
+        body = client.get("/badges").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    def test_nav_bar_present_on_about(self, client):
+        """T-01: about page includes the nav bar."""
+        body = client.get("/about").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    @pytest.mark.parametrize("path,active_label", NAV_PAGES)
+    def test_correct_link_has_active_class(self, client, path, active_label):
+        """T-01: the nav link matching the current route has the active class."""
+        body = client.get(path).data.decode("utf-8")
+        nav = _get_nav_html(body)
+        # The active link should contain 'nav-item active'
+        assert f"nav-item active" in nav
+        # The active link's text should match the expected label
+        active_link_start = nav.index("nav-item active")
+        # Verify the label text appears near the active class
+        assert active_label in nav[active_link_start:active_link_start + 100]
+
+    @pytest.mark.parametrize("path,active_label", NAV_PAGES)
+    def test_only_one_link_is_active(self, client, path, active_label):
+        """T-01: exactly one nav link has the active class per page."""
+        body = client.get(path).data.decode("utf-8")
+        nav = _get_nav_html(body)
+        assert nav.count("nav-item active") == 1
+
+    @pytest.mark.parametrize("path,active_label", NAV_PAGES)
+    def test_other_links_not_active(self, client, path, active_label):
+        """T-01: links for other pages do not have the active class."""
+        body = client.get(path).data.decode("utf-8")
+        nav = _get_nav_html(body)
+        for label in NAV_LINKS:
+            if label == active_label:
+                continue
+            # Extract the <a> tag for this label
+            label_pos = nav.find(f">{label}<")
+            if label_pos == -1:
+                continue
+            # Walk backwards to find the opening <a
+            a_start = nav.rfind("<a", 0, label_pos)
+            tag = nav[a_start:label_pos + len(f">{label}<") + 10]
+            assert "nav-item active" not in tag
+
+    def test_index_renders_title(self, client):
+        """T-01: index page still renders correctly after template refactor."""
+        body = client.get("/").data.decode("utf-8")
+        assert "<title>Snake</title>" in body
+
+    def test_scoreboard_renders_title(self, client):
+        """T-01: scoreboard page still renders correctly after template refactor."""
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "<title>Scoreboard</title>" in body
+
+    def test_history_renders_title(self, client):
+        """T-01: history page still renders correctly after template refactor."""
+        body = client.get("/history").data.decode("utf-8")
+        assert "<title>Game History</title>" in body
+
+    def test_badges_renders_title(self, client):
+        """T-01: badges page still renders correctly after template refactor."""
+        body = client.get("/badges").data.decode("utf-8")
+        assert "<title>Badges</title>" in body
+
+    def test_about_renders_title(self, client):
+        """T-01: about page still renders correctly after template refactor."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "<title>About</title>" in body
+
+    def test_nav_links_present(self, client):
+        """T-01: nav contains links to all 5 main pages."""
+        body = client.get("/").data.decode("utf-8")
+        nav = _get_nav_html(body)
+        for label in NAV_LINKS:
+            assert label in nav
+
+    def test_nav_item_class_on_links(self, client):
+        """T-01: all nav links use the nav-item CSS class."""
+        body = client.get("/").data.decode("utf-8")
+        nav = _get_nav_html(body)
+        # Each of the 5 links should have nav-item class
+        assert nav.count("nav-item") >= len(NAV_LINKS)
+
+    def test_nav_css_in_stylesheet(self, client):
+        """T-01: style.css defines .nav-item.active styling."""
+        resp = client.get("/static/style.css")
+        css = resp.data.decode("utf-8")
+        assert ".nav-item.active" in css
+
+    def test_main_nav_css_in_stylesheet(self, client):
+        """T-01: style.css defines .main-nav styling."""
+        resp = client.get("/static/style.css")
+        css = resp.data.decode("utf-8")
+        assert ".main-nav" in css
+
+    def test_active_class_uses_green_color(self, client):
+        """T-01: active nav item uses the project's green accent color."""
+        resp = client.get("/static/style.css")
+        css = resp.data.decode("utf-8")
+        # The active state should use #4ade80 (project green)
+        active_section = css[css.index(".nav-item.active"):]
+        assert "#4ade80" in active_section[:200]
+
+    def test_player_page_has_nav(self, client):
+        """T-01: player page also extends base template with nav bar."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice").data.decode("utf-8")
+        assert 'class="main-nav"' in body
+
+    def test_player_profile_has_nav(self, client):
+        """T-01: player profile page also extends base template with nav bar."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert 'class="main-nav"' in body
