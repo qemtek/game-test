@@ -5,6 +5,15 @@ import database
 app = Flask(__name__)
 
 
+@app.template_filter('thousands')
+def thousands_filter(value):
+    """Format a number with thousands separators (e.g. 1234567 -> '1,234,567')."""
+    try:
+        return f"{int(value):,}"
+    except (ValueError, TypeError):
+        return value
+
+
 @app.route('/')
 def index():
     return render_template('index.html')

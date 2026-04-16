@@ -1,3 +1,9 @@
+---
+noteId: "903078b0396211f184a6658df4177230"
+tags: []
+
+---
+
 # Snake
 
 A browser-based Snake game with a leaderboard backend.

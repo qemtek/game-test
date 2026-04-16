@@ -1303,7 +1303,7 @@ class TestGetScoreboard:
         resp = client.get("/scoreboard")
         body = resp.data.decode("utf-8")
         assert "TestPlayer" in body
-        assert "4200" in body
+        assert "4,200" in body
 
 
 # ===========================================================================
@@ -2903,3 +2903,47 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ---------------------------------------------------------------------------
+# Thousands filter — Jinja2 template filter
+# ---------------------------------------------------------------------------
+
+class TestThousandsFilter:
+    """Tests for the @app.template_filter('thousands') Jinja2 filter."""
+
+    def test_score_formatted_in_scoreboard_table(self, client):
+        """Score values in /scoreboard table use thousands separator."""
+        post_score(client, "Alice", 123456)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "123,456" in body
+
+    def test_podium_score_formatted(self, client):
+        """Podium scores on /scoreboard use thousands separator."""
+        post_score(client, "First", 9876)
+        post_score(client, "Second", 5432)
+        post_score(client, "Third", 2100)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "9,876" in body
+        assert "5,432" in body
+        assert "2,100" in body
+
+    def test_small_score_no_extra_zeros(self, client):
+        """Scores under 1000 render without unnecessary separators."""
+        post_score(client, "Alice", 42)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "42" in body
+        assert "42," not in body and ",42" not in body
+
+    def test_million_score_formatted(self, client):
+        """Scores >= 1,000,000 get multiple comma separators."""
+        post_score(client, "BigPlayer", 1234567)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "1,234,567" in body
+
+    def test_api_scores_unformatted(self, client):
+        """The /api/scores endpoint returns raw integers, not formatted strings."""
+        post_score(client, "Alice", 123456)
+        data = client.get("/api/scores").get_json()
+        assert data[0]["score"] == 123456
+        assert isinstance(data[0]["score"], int)
