@@ -2903,3 +2903,202 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ---------------------------------------------------------------------------
+# T-01 — Active nav highlight
+# ---------------------------------------------------------------------------
+
+NAV_PAGES = [
+    ("/", "index"),
+    ("/scoreboard", "scoreboard"),
+    ("/history", "history_page"),
+    ("/badges", "badges_page"),
+    ("/stats", "stats_page"),
+    ("/streaks", "streaks_page"),
+    ("/achievements", "achievements_page"),
+    ("/about", "about_page"),
+]
+
+
+class TestActiveNavHighlight:
+    """Tests for T-01: shared navigation with active-state highlighting."""
+
+    def test_base_template_has_main_nav(self, client):
+        """T-01: every page includes the shared <nav class="main-nav"> element."""
+        for path, _ in NAV_PAGES:
+            body = client.get(path).data.decode("utf-8")
+            assert 'class="main-nav"' in body, f"main-nav missing on {path}"
+
+    def test_nav_contains_all_links(self, client):
+        """T-01: nav renders links for all 8 sections."""
+        body = client.get("/").data.decode("utf-8")
+        for label in ["Home", "Scoreboard", "History", "Badges", "Stats", "Streaks", "Achievements", "About"]:
+            assert label in body, f"nav link '{label}' missing"
+
+    def test_home_active_on_index(self, client):
+        """T-01: visiting / marks the Home link as active."""
+        import re
+        body = client.get("/").data.decode("utf-8")
+        home_link = re.search(r'<a href="/" class="nav-link[^"]*"', body)
+        assert home_link and "active" in home_link.group()
+
+    def test_scoreboard_active_on_scoreboard(self, client):
+        """T-01: visiting /scoreboard marks Scoreboard as active."""
+        import re
+        body = client.get("/scoreboard").data.decode("utf-8")
+        sb_link = re.search(r'<a href="/scoreboard" class="nav-link[^"]*"', body)
+        assert sb_link and "active" in sb_link.group()
+
+    def test_history_active_on_history(self, client):
+        """T-01: visiting /history marks History as active."""
+        import re
+        body = client.get("/history").data.decode("utf-8")
+        link = re.search(r'<a href="/history" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_badges_active_on_badges(self, client):
+        """T-01: visiting /badges marks Badges as active."""
+        import re
+        body = client.get("/badges").data.decode("utf-8")
+        link = re.search(r'<a href="/badges" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_stats_active_on_stats(self, client):
+        """T-01: visiting /stats marks Stats as active."""
+        import re
+        body = client.get("/stats").data.decode("utf-8")
+        link = re.search(r'<a href="/stats" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_streaks_active_on_streaks(self, client):
+        """T-01: visiting /streaks marks Streaks as active."""
+        import re
+        body = client.get("/streaks").data.decode("utf-8")
+        link = re.search(r'<a href="/streaks" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_achievements_active_on_achievements(self, client):
+        """T-01: visiting /achievements marks Achievements as active."""
+        import re
+        body = client.get("/achievements").data.decode("utf-8")
+        link = re.search(r'<a href="/achievements" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_about_active_on_about(self, client):
+        """T-01: visiting /about marks About as active."""
+        import re
+        body = client.get("/about").data.decode("utf-8")
+        link = re.search(r'<a href="/about" class="nav-link[^"]*"', body)
+        assert link and "active" in link.group()
+
+    def test_only_one_active_link_per_page(self, client):
+        """T-01: exactly one nav link has the active class on each page."""
+        import re
+        for path, _ in NAV_PAGES:
+            body = client.get(path).data.decode("utf-8")
+            active_count = len(re.findall(r'nav-link active', body))
+            assert active_count == 1, f"expected 1 active link on {path}, got {active_count}"
+
+    def test_inactive_links_lack_active_class(self, client):
+        """T-01: non-matching links on /about do NOT have the active class."""
+        import re
+        body = client.get("/about").data.decode("utf-8")
+        all_links = re.findall(r'<a href="([^"]+)" class="([^"]+)"[^>]*>([^<]+)</a>', body)
+        nav_links = [(href, cls, text) for href, cls, text in all_links if "nav-link" in cls]
+        active_count = sum(1 for _, cls, _ in nav_links if "active" in cls)
+        assert active_count == 1
+        active_link = next(text for _, cls, text in nav_links if "active" in cls)
+        assert active_link == "About"
+
+    def test_nav_css_in_style_sheet(self, client):
+        """T-01: style.css contains .main-nav and .nav-link.active rules."""
+        import os
+        css_path = os.path.join(os.path.dirname(__file__), "static", "style.css")
+        with open(css_path) as f:
+            css = f.read()
+        assert ".main-nav" in css
+        assert ".nav-link" in css
+        assert ".nav-link.active" in css
+
+    def test_active_style_has_green_color(self, client):
+        """T-01: .nav-link.active uses the green highlight color #4ade80."""
+        import os
+        css_path = os.path.join(os.path.dirname(__file__), "static", "style.css")
+        with open(css_path) as f:
+            css = f.read()
+        assert "#4ade80" in css
+
+    def test_base_template_no_duplicate_html(self, client):
+        """T-01: pages extending base.html have exactly one DOCTYPE."""
+        import re
+        for path, _ in NAV_PAGES:
+            body = client.get(path).data.decode("utf-8")
+            doctype_count = len(re.findall(r'<!DOCTYPE', body, re.IGNORECASE))
+            assert doctype_count == 1, f"expected 1 DOCTYPE on {path}, got {doctype_count}"
+
+    def test_base_template_no_duplicate_body_tags(self, client):
+        """T-01: pages extending base.html have exactly one <body> and one </body>."""
+        import re
+        for path, _ in NAV_PAGES:
+            body = client.get(path).data.decode("utf-8")
+            open_body = len(re.findall(r'<body[^>]*>', body))
+            close_body = len(re.findall(r'</body>', body))
+            assert open_body == 1, f"expected 1 <body> on {path}, got {open_body}"
+            assert close_body == 1, f"expected 1 </body> on {path}, got {close_body}"
+
+    def test_old_back_link_removed_from_scoreboard(self, client):
+        """T-01: the old 'Back to Game' link is removed from /scoreboard."""
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_history(self, client):
+        """T-01: the old 'Back to Game' link is removed from /history."""
+        body = client.get("/history").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_badges(self, client):
+        """T-01: the old 'Back to Game' link is removed from /badges."""
+        body = client.get("/badges").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_stats(self, client):
+        """T-01: the old 'Back to Game' link is removed from /stats."""
+        body = client.get("/stats").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_streaks(self, client):
+        """T-01: the old 'Back to Game' link is removed from /streaks."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_achievements(self, client):
+        """T-01: the old 'Back to Game' link is removed from /achievements."""
+        body = client.get("/achievements").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_old_back_link_removed_from_about(self, client):
+        """T-01: the old 'Back to Game' link is removed from /about."""
+        body = client.get("/about").data.decode("utf-8")
+        assert "Back to Game" not in body
+
+    def test_nav_order_is_correct(self, client):
+        """T-01: nav links appear in the expected left-to-right order."""
+        import re
+        body = client.get("/").data.decode("utf-8")
+        links = re.findall(r'<a href="[^"]+" class="nav-link[^"]*">([^<]+)</a>', body)
+        expected = ["Home", "Scoreboard", "History", "Badges", "Stats", "Streaks", "Achievements", "About"]
+        assert links == expected
+
+    def test_index_still_renders_game_canvas(self, client):
+        """T-01: / still renders the game content (canvas or game area)."""
+        body = client.get("/").data.decode("utf-8")
+        assert "Snake" in body
+        assert "game.js" in body
+
+    def test_scoreboard_still_renders_table(self, client):
+        """T-01: /scoreboard still renders the scoreboard table."""
+        post_score(client, "TestPlayer", 999)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "TestPlayer" in body
+        assert "999" in body
