@@ -5,6 +5,19 @@ import database
 app = Flask(__name__)
 
 
+def thousands(value):
+    """Format an integer with comma separators (e.g. 1234567 -> 1,234,567)."""
+    if value is None:
+        return '—'
+    try:
+        return f"{int(value):,}"
+    except (ValueError, TypeError):
+        return value
+
+
+app.jinja_env.filters['thousands'] = thousands
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
