@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Snake{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="main-nav">
+        <a href="/" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+        <a href="/scoreboard" class="nav-link {% if request.endpoint == 'scoreboard' %}active{% endif %}">Scoreboard</a>
+        <a href="/history" class="nav-link {% if request.endpoint == 'history_page' %}active{% endif %}">History</a>
+        <a href="/badges" class="nav-link {% if request.endpoint == 'badges_page' %}active{% endif %}">Badges</a>
+        <a href="/stats" class="nav-link {% if request.endpoint == 'stats_page' %}active{% endif %}">Stats</a>
+        <a href="/streaks" class="nav-link {% if request.endpoint == 'streaks_page' %}active{% endif %}">Streaks</a>
+        <a href="/achievements" class="nav-link {% if request.endpoint == 'achievements_page' %}active{% endif %}">Achievements</a>
+        <a href="/about" class="nav-link {% if request.endpoint == 'about_page' %}active{% endif %}">About</a>
+    </nav>
+
+    {% block content %}{% endblock %}
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

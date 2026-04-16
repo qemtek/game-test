@@ -1,10 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scoreboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+{% extends "base.html" %}
+{% block title %}Scoreboard{% endblock %}
+
+{% block extra_css %}
     <style>
         .scoreboard-container {
             width: 100%;
@@ -186,23 +183,11 @@
             text-transform: uppercase;
             vertical-align: middle;
         }
-
-        a.nav-link {
-            color: #4ade80;
-            text-decoration: none;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-
-        a.nav-link:hover {
-            color: #86efac;
-        }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <h1>Scoreboard</h1>
-    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
 
     <div class="scoreboard-container">
 
@@ -307,7 +292,9 @@
         </div>
 
     </div>
+{% endblock %}
 
+{% block extra_js %}
     <script>
         // --- Auto-refresh every 5 seconds ---
         let allScores = [];
@@ -430,5 +417,4 @@
 
         setInterval(refresh, 5000);
     </script>
-</body>
-</html>
+{% endblock %}
