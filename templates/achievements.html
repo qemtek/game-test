@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Achievements</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
+{% extends "base.html" %}
+
+{% block title %}Player Achievements{% endblock %}
+
+{% block extra_head %}
         body {
             background-color: #1a1a2e;
             color: #e0e0e0;
@@ -77,23 +74,11 @@
             font-size: 0.9rem;
             padding: 1rem 0;
         }
+{% endblock %}
 
-        a.nav-link {
-            color: #4ade80;
-            text-decoration: none;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-
-        a.nav-link:hover {
-            color: #86efac;
-        }
-    </style>
-</head>
-<body>
+{% block content %}
     <h1>Achievements</h1>
-    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+    <p class="subtitle"></p>
 
     <div class="achievements-container">
         <div class="achievements-section">
@@ -132,5 +117,4 @@
             </table>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}

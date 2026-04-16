@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Game Score Tracker{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        {% block extra_head %}{% endblock %}
+    </style>
+</head>
+<body>
+    <nav class="main-nav">
+        <a href="/" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">Game</a>
+        <a href="/scoreboard" class="nav-item {% if request.endpoint == 'scoreboard' %}active{% endif %}">Scoreboard</a>
+        <a href="/history" class="nav-item {% if request.endpoint == 'history_page' %}active{% endif %}">History</a>
+        <a href="/badges" class="nav-item {% if request.endpoint == 'badges_page' %}active{% endif %}">Badges</a>
+        <a href="/about" class="nav-item {% if request.endpoint == 'about_page' %}active{% endif %}">About</a>
+    </nav>
+
+    {% block content %}{% endblock %}
+</body>
+</html>

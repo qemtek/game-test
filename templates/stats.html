@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Statistics</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
+{% extends "base.html" %}
+
+{% block title %}Game Statistics{% endblock %}
+
+{% block extra_head %}
         .stats-container {
             width: 100%;
             max-width: 900px;
@@ -46,23 +43,11 @@
             color: #9ca3af;
             font-family: 'Courier New', monospace;
         }
+{% endblock %}
 
-        a.nav-link {
-            color: #4ade80;
-            text-decoration: none;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-
-        a.nav-link:hover {
-            color: #86efac;
-        }
-    </style>
-</head>
-<body>
+{% block content %}
     <h1>Game Statistics</h1>
-    <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+    <p class="subtitle"></p>
 
     <div class="stats-container">
         <div class="stats-grid">
@@ -105,5 +90,4 @@
 
         </div>
     </div>
-</body>
-</html>
+{% endblock %}
