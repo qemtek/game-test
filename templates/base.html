@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Snake{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="main-nav">
+        <a href="/" class="nav-link{% if request.endpoint == 'index' %} active{% endif %}">Game</a>
+        <a href="/scoreboard" class="nav-link{% if request.endpoint == 'scoreboard' %} active{% endif %}">Scoreboard</a>
+        <a href="/history" class="nav-link{% if request.endpoint == 'history' %} active{% endif %}">History</a>
+        <a href="/stats" class="nav-link{% if request.endpoint == 'stats' %} active{% endif %}">Stats</a>
+        <a href="/tournaments" class="nav-link{% if request.endpoint == 'tournaments' %} active{% endif %}">Tournaments</a>
+        <a href="/badges" class="nav-link{% if request.endpoint == 'badges' %} active{% endif %}">Badges</a>
+        <a href="/achievements" class="nav-link{% if request.endpoint == 'achievements' %} active{% endif %}">Achievements</a>
+        <a href="/streaks" class="nav-link{% if request.endpoint == 'streaks' %} active{% endif %}">Streaks</a>
+        <a href="/about" class="nav-link{% if request.endpoint == 'about' %} active{% endif %}">About</a>
+    </nav>
+
+    {% block content %}{% endblock %}
+</body>
+</html>
