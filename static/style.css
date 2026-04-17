@@ -205,3 +205,11 @@ button:disabled {
     margin-top: 0.25rem;
     height: 1rem;
 }
+
+a.nav-link.active {
+    color: #86efac;
+    text-decoration: underline;
+    background: rgba(74, 222, 128, 0.12);
+    padding: 0.15rem 0.6rem;
+    border-radius: 4px;
+}
