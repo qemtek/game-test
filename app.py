@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', endpoint=request.endpoint)
 
 
 @app.route('/health')
@@ -422,7 +422,7 @@ def api_scoreboard():
 @app.route('/scoreboard', methods=['GET'])
 def scoreboard():
     data = get_scoreboard_data()
-    return render_template('scoreboard.html', **data)
+    return render_template('scoreboard.html', endpoint=request.endpoint, **data)
 
 
 
@@ -464,7 +464,8 @@ def player_page(name):
         ).fetchall()
 
         if not scores_rows:
-            return render_template('player.html', player_name=name, not_found=True,
+            return render_template('player.html', endpoint=request.endpoint,
+                                   player_name=name, not_found=True,
                                    scores=[], total_games=0, best_score=0, average_score=0)
 
         scores_list = [dict(row) for row in scores_rows]
@@ -474,6 +475,7 @@ def player_page(name):
 
     return render_template(
         'player.html',
+        endpoint=request.endpoint,
         player_name=name,
         not_found=False,
         scores=scores_list,
@@ -545,7 +547,7 @@ def history_page():
         entry['rank'] = i + 1
         entry['time_ago'] = _time_ago(entry['created_at'])
         entries.append(entry)
-    return render_template('history.html', entries=entries)
+    return render_template('history.html', endpoint=request.endpoint, entries=entries)
 
 
 # ---------------------------------------------------------------------------
@@ -581,7 +583,7 @@ def api_about():
 @app.route('/about', methods=['GET'])
 def about_page():
     data = _get_about_data()
-    return render_template('about.html', **data)
+    return render_template('about.html', endpoint=request.endpoint, **data)
 
 
 # ---------------------------------------------------------------------------
@@ -682,7 +684,7 @@ def achievements_page():
     """HTML table of players with checkmark icons for earned achievements."""
     data = _get_achievements_data()
     milestone_names = [name for name, _ in MILESTONES]
-    return render_template('achievements.html', players=data, milestones=milestone_names)
+    return render_template('achievements.html', endpoint=request.endpoint, players=data, milestones=milestone_names)
 
 
 # ---------------------------------------------------------------------------
@@ -730,7 +732,7 @@ def api_stats():
 @app.route('/stats', methods=['GET'])
 def stats_page():
     data = _get_stats_data()
-    return render_template('stats.html', **data)
+    return render_template('stats.html', endpoint=request.endpoint, **data)
 
 
 # ---------------------------------------------------------------------------
@@ -805,7 +807,7 @@ def api_streaks():
 def streaks_page():
     """HTML table of player streaks sorted by current_streak DESC."""
     streaks = _get_streaks_data()
-    return render_template('streaks.html', streaks=streaks)
+    return render_template('streaks.html', endpoint=request.endpoint, streaks=streaks)
 
 
 # ---------------------------------------------------------------------------
@@ -884,6 +886,7 @@ def player_profile_page(name):
         if player_row is None:
             return render_template(
                 'player_profile.html',
+                endpoint=request.endpoint,
                 player_name=name,
                 not_found=True,
                 rank=None,
@@ -921,6 +924,7 @@ def player_profile_page(name):
 
     return render_template(
         'player_profile.html',
+        endpoint=request.endpoint,
         player_name=player_row['name'],
         not_found=False,
         rank=rank_row['rank'],

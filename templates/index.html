@@ -10,6 +10,17 @@
     <h1>Snake</h1>
     <p class="subtitle">Use arrow keys or WASD</p>
 
+    <nav class="site-nav">
+        <a href="/" class="nav-link{% if endpoint == 'index' %} active{% endif %}">Home</a>
+        <a href="/scoreboard" class="nav-link{% if endpoint == 'scoreboard' %} active{% endif %}">Scoreboard</a>
+        <a href="/history" class="nav-link{% if endpoint == 'history_page' %} active{% endif %}">History</a>
+        <a href="/streaks" class="nav-link{% if endpoint == 'streaks_page' %} active{% endif %}">Streaks</a>
+        <a href="/badges" class="nav-link{% if endpoint == 'badges_page' %} active{% endif %}">Badges</a>
+        <a href="/achievements" class="nav-link{% if endpoint == 'achievements_page' %} active{% endif %}">Achievements</a>
+        <a href="/stats" class="nav-link{% if endpoint == 'stats_page' %} active{% endif %}">Stats</a>
+        <a href="/about" class="nav-link{% if endpoint == 'about_page' %} active{% endif %}">About</a>
+    </nav>
+
     <div class="game-container">
         <div class="game-panel">
             <div class="hud">
@@ -70,7 +81,6 @@
         </div>
     </div>
 
-    <p style="text-align:center; margin-top:1rem;"><a href="/history" style="color:#4ade80; text-decoration:none; font-family:'Courier New',monospace; font-size:0.85rem; letter-spacing:2px; text-transform:uppercase;">&#9654; History</a></p>
     <script src="/static/game.js"></script>
 </body>
 </html>
