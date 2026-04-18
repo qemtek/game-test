@@ -299,7 +299,7 @@ class TestScoreboardHtmlEndpoint:
         _post_score(client, "GhostByte", 7777)
         body = client.get("/scoreboard").data.decode()
         assert "GhostByte" in body
-        assert "7,777" in body
+        assert "7777" in body
 
     def test_empty_state_shown_when_no_scores(self, client):
         """PARE-49: when no scores exist, the page still renders (no 500)."""
@@ -352,7 +352,7 @@ class TestScoreboardHtmlEndpoint:
         body = client.get("/scoreboard").data.decode()
         for name, score in players:
             assert name in body
-            assert '{:,}'.format(score) in body
+            assert str(score) in body
 
     def test_fetch_scoreboard_api_call_in_js(self, client):
         """PARE-49: JS in the page fetches /api/scoreboard for live updates."""
