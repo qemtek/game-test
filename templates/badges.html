@@ -184,7 +184,7 @@
                     <span class="badge-circle badge-circle-large {{ entry.badge }}"></span>
                     <span class="badge-label">{{ entry.badge }}</span>
                     <span class="player-name">{{ entry.player }}</span>
-                    <span class="player-score">{{ entry.best_score }} pts</span>
+                    <span class="player-score">{{ entry.best_score | format_score }} pts</span>
                 </div>
                 {% endfor %}
             </div>
