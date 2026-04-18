@@ -79,7 +79,7 @@
 
             <div class="stat-card">
                 <div class="stat-label">Highest Score</div>
-                <div class="stat-value">{{ highest_score.score if highest_score.score is not none else '—' }}</div>
+                <div class="stat-value">{{ highest_score.score | format_score if highest_score.score is not none else '—' }}</div>
                 {% if highest_score.name %}
                 <div class="stat-sub">{{ highest_score.name }}</div>
                 {% endif %}
@@ -95,7 +95,7 @@
 
             <div class="stat-card">
                 <div class="stat-label">Average Score</div>
-                <div class="stat-value">{{ average_score }}</div>
+                <div class="stat-value">{{ average_score | format_score }}</div>
             </div>
 
             <div class="stat-card">

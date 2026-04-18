@@ -266,7 +266,7 @@ class TestHistoryPageEdgeCases:
         """Submitted score values must appear in the page body."""
         _post(client, "Alice", 4242)
         body = client.get("/history").data.decode("utf-8")
-        assert "4242" in body
+        assert "4,242" in body
 
     def test_time_ago_appears_for_each_entry(self, client):
         """Each entry row must contain a 'ago' time string."""

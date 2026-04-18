@@ -1303,7 +1303,7 @@ class TestGetScoreboard:
         resp = client.get("/scoreboard")
         body = resp.data.decode("utf-8")
         assert "TestPlayer" in body
-        assert "4200" in body
+        assert "4,200" in body
 
 
 # ===========================================================================
@@ -1464,7 +1464,7 @@ class TestPlayerPage:
             post_score(client, "PixelKnight", s)
         body = client.get("/player/PixelKnight").data.decode("utf-8")
         for s in scores:
-            assert str(s) in body
+            assert f"{s:,}" in body
 
     def test_not_found_page_no_svg_chart(self, client):
         """PARE-52: not-found page does not render an SVG chart."""
@@ -1633,7 +1633,7 @@ class TestHistoryPage:
         """PARE-53: /history renders the submitted score."""
         post_score(client, "Alice", 1234)
         body = client.get("/history").data.decode("utf-8")
-        assert "1234" in body
+        assert "1,234" in body
 
     def test_shows_relative_time(self, client):
         """PARE-53: /history renders a relative time string in each row."""
@@ -2864,7 +2864,7 @@ class TestPlayerProfilePageEdgeCases:
         """PARE-75: the highest score value appears in the page."""
         post_score(client, "Alice", 9876)
         body = client.get("/player/Alice/profile").data.decode("utf-8")
-        assert "9876" in body
+        assert "9,876" in body
 
     def test_not_found_page_has_no_table(self, client):
         """PARE-75: not-found page does not render the stats table."""

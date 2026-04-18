@@ -5,6 +5,15 @@ import database
 app = Flask(__name__)
 
 
+@app.template_filter('format_score')
+def format_score(value):
+    """Format an integer score value with comma separators (e.g. 1234 -> '1,234')."""
+    try:
+        return f"{int(value):,}"
+    except (ValueError, TypeError):
+        return value
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
