@@ -5,6 +5,14 @@ import database
 app = Flask(__name__)
 
 
+@app.template_filter('format_score')
+def format_score_filter(value):
+    try:
+        return f"{int(value):,}"
+    except (TypeError, ValueError):
+        return value
+
+
 @app.route('/')
 def index():
     return render_template('index.html')

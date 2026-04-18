@@ -182,7 +182,7 @@
                         fill="#e0e0e0"
                         font-size="10"
                         font-family="monospace"
-                    >{{ entry.score }}</text>
+                    >{{ entry.score | format_score }}</text>
                     {% endfor %}
                 </svg>
             </div>
@@ -204,7 +204,7 @@
                         {% for entry in scores %}
                         <tr>
                             <td>{{ loop.index }}</td>
-                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.score | format_score }}</td>
                             <td>{{ entry.created_at }}</td>
                         </tr>
                         {% endfor %}
