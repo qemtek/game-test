@@ -158,7 +158,7 @@
                         {% for entry in top_scores %}
                         <tr>
                             <td>#{{ entry.rank }}</td>
-                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.score | format_score }}</td>
                             <td>{{ entry.date }}</td>
                         </tr>
                         {% endfor %}
