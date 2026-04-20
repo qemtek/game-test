@@ -2903,3 +2903,43 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ---------------------------------------------------------------------------
+# T-02: format_score filter
+# ---------------------------------------------------------------------------
+
+class TestFormatScoreFilter:
+    """T-02: format_score Jinja2 filter formats integers with comma separators."""
+
+    def test_filter_registered(self):
+        import app as app_module
+        assert 'format_score' in app_module.app.jinja_env.filters
+
+    def test_filter_formats_large_number(self):
+        import app as app_module
+        result = app_module.app.jinja_env.filters['format_score'](1000000)
+        assert result == '1,000,000'
+
+    def test_filter_formats_thousands(self):
+        import app as app_module
+        result = app_module.app.jinja_env.filters['format_score'](1234)
+        assert result == '1,234'
+
+    def test_scoreboard_renders_comma_score(self, client):
+        """Scoreboard HTML renders score with comma separator."""
+        post_score(client, "Alice", 12345)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "12,345" in body
+
+    def test_history_renders_comma_score(self, client):
+        """History page renders score with comma separator."""
+        post_score(client, "Bob", 9876)
+        body = client.get("/history").data.decode("utf-8")
+        assert "9,876" in body
+
+    def test_player_page_renders_comma_score(self, client):
+        """Player page renders best_score with comma separator."""
+        post_score(client, "Carol", 5000)
+        body = client.get("/player/Carol").data.decode("utf-8")
+        assert "5,000" in body
