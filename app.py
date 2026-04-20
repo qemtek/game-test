@@ -591,7 +591,7 @@ def api_about():
 @app.route('/about', methods=['GET'])
 def about_page():
     data = _get_about_data()
-    return render_template('about.html', **data)
+    return render_template('about.html', **data, year=datetime.now().year)
 
 
 # ---------------------------------------------------------------------------
