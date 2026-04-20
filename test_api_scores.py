@@ -1537,10 +1537,10 @@ class TestGetPlayerHistoryEdgeCases:
         assert alice_data["total_games"] == 2
         assert bob_data["total_games"] == 2
 
-    def test_no_tournaments_route(self, client):
-        """PARE-52 scope check: GET /tournaments was removed; must return 404."""
+    def test_tournaments_route_exists(self, client):
+        """Route re-added in 34df758: GET /tournaments returns 200."""
         resp = client.get("/tournaments")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
