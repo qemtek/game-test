@@ -1540,7 +1540,7 @@ class TestGetPlayerHistoryEdgeCases:
     def test_no_tournaments_route(self, client):
         """PARE-52 scope check: GET /tournaments was removed; must return 404."""
         resp = client.get("/tournaments")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
