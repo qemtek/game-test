@@ -1,11 +1,9 @@
----
-noteId: "2a9085f0329011f19682db1af2e416db"
-tags: []
+# Project Brief — batch-canonical-t01
 
----
-
-# Project Brief — batch-20260407-01
-## Leaderboard API Endpoints
+**Batch:** batch-canonical-t01  
+**Group:** group-canonical-t01  
+**Generated:** 2026-04-20  
+**Scope:** Frontend-only — nav active state on tournaments page
 
 ---
 
@@ -13,41 +11,17 @@ tags: []
 
 ```mermaid
 graph TD
-    Client["Browser / curl"]
-    Flask["Flask app (app.py)"]
-    DB["SQLite (scores.db)"]
-    DBHelper["database.py\nget_db() / init_db()"]
-
-    Client -->|"GET /api/scores"| Flask
-    Client -->|"POST /api/scores"| Flask
-    Flask -->|"SELECT top 10"| DBHelper
-    Flask -->|"INSERT + re-fetch"| DBHelper
-    DBHelper --> DB
+    A[Browser] -->|GET /tournaments| B[app.py: /tournaments route]
+    A -->|GET /scoreboard| C[app.py: /scoreboard route]
+    B --> D[templates/tournaments.html]
+    C --> E[templates/scoreboard.html]
+    D -->|link rel stylesheet| F[static/style.css]
+    E -->|link rel stylesheet| F
+    D -->|<style> block| G[inline nav-link styles]
+    E -->|<style> block| H[inline nav-link styles]
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant F as Flask (app.py)
-    participant D as database.py
-    participant S as scores.db
-
-    C->>F: GET /api/scores
-    F->>D: get_db()
-    D->>S: SELECT id, name, score, created_at ORDER BY score DESC LIMIT 10
-    S-->>D: rows (sqlite3.Row)
-    D-->>F: connection / cursor
-    F-->>C: 200 JSON array
-
-    C->>F: POST /api/scores {"name": "Alice", "score": 1500}
-    F->>F: validate name (non-empty str) + score (positive int, not bool)
-    F->>D: get_db()
-    D->>S: INSERT INTO scores (name, score) VALUES (?, ?)
-    S-->>D: lastrowid
-    D->>S: SELECT id, name, score, created_at WHERE id = lastrowid
-    S-->>D: row
-    F-->>C: 201 JSON object {id, name, score, created_at}
-```
+The app has no shared base template / Jinja2 inheritance. Each template is standalone. Nav styles (`.nav-link`, `.nav-link:hover`) are duplicated in `<style>` blocks per-template, not in `style.css`.
 
 ---
 
@@ -55,72 +29,105 @@ sequenceDiagram
 
 | File | Purpose |
 |------|---------|
-| `app.py` | Flask app — all routes live here. The two stubbed handlers are `get_scores()` and `post_score()` |
-| `database.py` | SQLite helpers: `get_db()` returns a connection with `row_factory = sqlite3.Row`; `init_db()` creates the table |
-| `requirements.txt` | `flask>=3.0.0` — no other deps |
-| `static/game.js` | Frontend Snake game — calls `GET /api/scores` on load and `POST /api/scores` on score submit. **Do not modify.** |
-| `templates/index.html` | Main page template. **Do not modify.** |
+| `templates/tournaments.html` | Tournaments page — contains the nav subtitle with the Scoreboard link to be styled |
+| `templates/scoreboard.html` | Scoreboard page — has its own `<style>` block with `.nav-link` definition |
+| `static/style.css` | Global styles — does NOT currently define `.nav-link` (defined per-template inline) |
+| `app.py` | Flask routes — read-only for this task |
 
 ---
 
 ## Conventions
 
-- **Route handlers** are plain functions decorated with `@app.route(...)`. No blueprints.
-- **JSON responses** use `jsonify(...)`. Never `return json.dumps(...)` directly.
-- **DB access pattern**: use `with database.get_db() as conn:` for auto-commit/rollback context.
-- **Row serialisation**: `conn.row_factory = sqlite3.Row` is already set — convert rows with `dict(row)` or `[dict(r) for r in rows]`.
-- **No ORM** — raw SQL only.
+- Color palette: `#4ade80` (green accent), `#86efac` (lighter hover green), `#6b7280` (muted gray), `#1a1a2e` (page bg)
+- Font: `'Courier New', monospace` throughout
+- Nav links use `text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem`
+- No build step — changes to `.html` and `.css` are live immediately
+- `.nav-link` and `.nav-link:hover` are defined as `<style>` blocks inside each template that needs them (not in `style.css`)
 
 ---
 
 ## Gotchas
 
-### 1. `bool` is a subclass of `int` in Python
-`isinstance(True, int)` returns `True`. You must explicitly reject booleans before accepting a score as an integer:
-```python
-if not isinstance(score, int) or isinstance(score, bool) or score <= 0:
-    return jsonify({"error": "score must be a positive integer"}), 422
-```
-
-### 2. `request.get_json(silent=True)` vs `request.get_json()`
-Use `silent=True` so Flask returns `None` instead of raising a 400 when the body is not valid JSON. Then check for `None` yourself to return a controlled error response.
-
-### 3. Re-fetch after INSERT for `created_at`
-SQLite does not return the full row from an INSERT. Use `cursor.lastrowid` to do a second SELECT so the response includes the DB-generated `created_at`:
-```python
-cursor = conn.execute('INSERT INTO scores (name, score) VALUES (?, ?)', (name, score))
-conn.commit()
-row = conn.execute('SELECT id, name, score, created_at FROM scores WHERE id = ?', (cursor.lastrowid,)).fetchone()
-return jsonify(dict(row)), 201
-```
-
-### 4. `conn.row_factory = sqlite3.Row` already set
-Do not re-set it. `get_db()` in `database.py` configures it on every connection.
-
-### 5. Whitespace-only names
-`name.strip()` before validation and before insert. The check should be:
-```python
-if not isinstance(name, str) or not name.strip():
-```
+- **`.nav-link` is NOT in `style.css`** — it lives in the `<style>` block of `tournaments.html` (lines 111–123). Adding it to `style.css` alone won't work unless the template also references the global sheet AND the local block is adjusted.
+- The simplest approach: add a `.nav-link-active` rule to the **same `<style>` block** in `tournaments.html`, and add the class to the Scoreboard `<a>` tag. No `style.css` changes required.
+- `scoreboard.html` currently only has `← Back to Game` in its subtitle — there is no cross-link back to tournaments, so no active-state treatment needed there for this task.
 
 ---
 
 ## Dependencies
 
-- `get_scores()` and `post_score()` both depend on `database.get_db()`. No other cross-handler dependencies.
-- `database.init_db()` is called at startup (`if __name__ == '__main__'`). The table will exist when handlers run.
-- The frontend (`static/game.js`) calls these endpoints — do not change the response shape or the game will break.
+- Changing `tournaments.html` only affects the tournaments page. No other templates link to it.
+- `style.css` is shared — if `.nav-link-active` is added there, it will be available on ALL pages, but only tournaments.html sets the class, so no side-effects.
 
 ---
 
-## Files to Modify
+## Client Preferences
 
-Only `app.py`. Replace the two stubbed handlers. No other files need to change.
+- Visual treatment should be consistent with the existing accent scheme (`#4ade80`/`#86efac`)
+- No JavaScript required — pure CSS class on the anchor
 
 ---
 
-## Client Preferences / Assumptions
+## Task 124: Tournaments Nav Active State
 
-- **`created_at`** returned as raw SQLite string (e.g. `"2026-04-07 14:24:13"`). No ISO-8601 conversion.
-- **Error body shape**: `{"error": "message"}` — standard convention.
-- Both tasks are in the same group and should be implemented together in one PR.
+**Files to modify:**
+- `templates/tournaments.html` — add `nav-link-active` class to Scoreboard `<a>` tag; add `.nav-link-active` rule to existing `<style>` block
+- `static/style.css` — optional if adding globally, but per-template `<style>` block is preferred
+
+**Files to read (not modify):**
+- `templates/scoreboard.html` — understand existing nav pattern; no change needed
+- `static/style.css` — understand global styles
+
+**Do not touch:** `app.py`, `database.py`, `static/game.js`, any template other than `tournaments.html`
+
+**Key snippet** (tournaments.html line 126):
+```html
+<p class="subtitle"><a href="/" class="nav-link">← Back to Game</a> &nbsp;|&nbsp; <a href="/scoreboard" class="nav-link">Scoreboard</a></p>
+```
+Change to:
+```html
+<p class="subtitle"><a href="/" class="nav-link">← Back to Game</a> &nbsp;|&nbsp; <a href="/scoreboard" class="nav-link nav-link-active">Scoreboard</a></p>
+```
+
+**CSS to add** (inside the existing `<style>` block in tournaments.html, after line 119):
+```css
+a.nav-link-active {
+    font-weight: bold;
+    text-decoration: underline;
+    color: #86efac;
+}
+```
+
+**Acceptance check:** On `/tournaments`, the "Scoreboard" nav link is visually distinct from "← Back to Game" (bold + underline, or accent-colour change). The "← Back to Game" link is not affected. No other pages are affected.
+
+---
+
+## Task 125: Tournaments Nav: highlight Scoreboard link as active
+
+Identical scope to Task 124 — same file, same change. This is a duplicate created in the same batch.
+
+**Files to modify:**
+- `templates/tournaments.html` — add `nav-link-active` class to Scoreboard `<a>` tag (line 126); add `.nav-link-active` CSS rule to `<style>` block
+- `static/style.css` — add `.nav-link-active` rule if a shared approach is preferred
+
+**Files to read (not modify):**
+- `templates/scoreboard.html` — existing nav-link pattern reference
+- `static/style.css` — existing global styles
+
+**Do not touch:** `app.py`, `database.py`, `static/game.js`, any template other than `tournaments.html`
+
+**Key snippet** (tournaments.html line 126):
+```html
+<p class="subtitle"><a href="/" class="nav-link">← Back to Game</a> &nbsp;|&nbsp; <a href="/scoreboard" class="nav-link">Scoreboard</a></p>
+```
+
+**CSS to add** (in `<style>` block at tournaments.html ~line 119, or in `static/style.css`):
+```css
+a.nav-link-active {
+    font-weight: bold;
+    text-decoration: underline;
+    color: #86efac;
+}
+```
+
+**Acceptance check:** `.nav-link-active` class is applied to the Scoreboard `<a>` in `tournaments.html`, a matching CSS rule exists (in-template or global), and the link is visually distinct when visiting `/tournaments`.
