@@ -425,6 +425,16 @@ def scoreboard():
     return render_template('scoreboard.html', **data)
 
 
+@app.route('/tournaments', methods=['GET'])
+def tournaments_page():
+    with database.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, status, starts_at, ends_at, created_at FROM tournaments ORDER BY starts_at DESC"
+        ).fetchall()
+        tournaments = [_tournament_row_with_status(conn, row) for row in rows]
+    return render_template('tournaments.html', tournaments=tournaments)
+
+
 
 # ---------------------------------------------------------------------------
 # PARE-52 — Individual player history page
