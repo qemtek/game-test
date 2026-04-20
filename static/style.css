@@ -205,3 +205,9 @@ button:disabled {
     margin-top: 0.25rem;
     height: 1rem;
 }
+
+a.nav-link.nav-active {
+    color: #86efac;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
