@@ -54,10 +54,30 @@
             font-weight: bold;
         }
 
-        .empty-state {
-            color: #6b7280;
+        .empty-state-card {
+            background: #1a1a3e;
+            border: 1px solid #2d2d4e;
+            border-radius: 8px;
+            padding: 2.5rem 1.5rem;
             text-align: center;
-            padding: 1rem;
+        }
+
+        .empty-state-card .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .empty-state-card .message {
+            color: #4ade80;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state-card .hint {
+            color: #6b7280;
+            font-size: 0.85rem;
         }
 
         a.nav-link {
@@ -100,7 +120,15 @@
                         </tr>
                         {% endfor %}
                     {% else %}
-                        <tr><td colspan="4" class="empty-state">No scores yet</td></tr>
+                        <tr>
+                            <td colspan="4">
+                                <div class="empty-state-card">
+                                    <div class="icon">🎮</div>
+                                    <div class="message">No Scores Recorded</div>
+                                    <div class="hint">Play a game to see your history here.</div>
+                                </div>
+                            </td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
