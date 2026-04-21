@@ -580,6 +580,7 @@ def _get_about_data():
         'total_players': total_players,
         'total_scores': total_scores,
         'total_tournaments': total_tournaments,
+        'year': datetime.now().year,
     }
 
 
