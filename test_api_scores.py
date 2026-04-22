@@ -2538,6 +2538,112 @@ class TestStreaksPage:
         resp = client.post("/streaks", json={})
         assert resp.status_code == 405
 
+    def test_heatmap_grid_present(self, client):
+        """PARE-T14: heatmap grid container is rendered."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'class="heatmap-grid"' in body
+
+    def test_heatmap_cells(self, client):
+        """PARE-T14: heatmap has 84 cells (7 rows x 12 weeks)."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert body.count('class="heatmap-cell') == 84
+
+    def test_heatmap_legend_present(self, client):
+        """PARE-T14: heatmap includes a legend."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-legend' in body
+
+    def test_heatmap_intensity_levels(self, client):
+        """PARE-T14: heatmap cells have intensity classes."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-22T10:00:00')"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell none' in body
+
+    def test_heatmap_level_low(self, client):
+        """PARE-T14: a single score today produces a 'low' cell."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, "
+                "datetime('now', 'localtime'))"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell low' in body
+
+    def test_heatmap_level_medium(self, client):
+        """PARE-T14: 3+ scores today produce a 'medium' cell."""
+        import database as db
+        with db.get_db() as conn:
+            for i in range(4):
+                conn.execute(
+                    "INSERT INTO scores (name, score, created_at) VALUES (?, ?, "
+                    "datetime('now', 'localtime'))",
+                    (f'Player{i}', 100 + i)
+                )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell medium' in body
+
+    def test_heatmap_level_high(self, client):
+        """PARE-T14: 6+ scores today produce a 'high' cell."""
+        import database as db
+        with db.get_db() as conn:
+            for i in range(7):
+                conn.execute(
+                    "INSERT INTO scores (name, score, created_at) VALUES (?, ?, "
+                    "datetime('now', 'localtime'))",
+                    (f'Player{i}', 100 + i)
+                )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell high' in body
+
+    def test_heatmap_level_very_high(self, client):
+        """PARE-T14: 11+ scores today produce a 'very-high' cell."""
+        import database as db
+        with db.get_db() as conn:
+            for i in range(12):
+                conn.execute(
+                    "INSERT INTO scores (name, score, created_at) VALUES (?, ?, "
+                    "datetime('now', 'localtime'))",
+                    (f'Player{i}', 100 + i)
+                )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell very-high' in body
+
+    def test_existing_streak_table_unchanged(self, client):
+        """PARE-T14: streak table headers still present after heatmap addition."""
+        post_score(client, "TestUser", 50)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "Player" in body
+        assert "Current Streak" in body
+        assert "Best Streak" in body
+        assert "Last Played" in body
+
+    def test_highlight_class_still_works(self, client):
+        """PARE-T14: highlight class on rows with current_streak >= 3 still works."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '2026-04-10T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 200, '2026-04-11T10:00:00+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('Alice', 300, '2026-04-12T10:00:00+00:00')"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "highlight" in body
+
 
 # ---------------------------------------------------------------------------
 # PARE-75 — Player profile page with stats
