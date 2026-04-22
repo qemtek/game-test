@@ -215,21 +215,21 @@
                 <div class="podium-col second">
                     <div class="podium-rank">2</div>
                     <div class="podium-name">{{ top_scores[1].name }}</div>
-                    <div class="podium-score">{{ top_scores[1].score }}</div>
+                    <div class="podium-score">{{ top_scores[1].score|thousands }}</div>
                 </div>
                 {% endif %}
                 {% if top_scores|length >= 1 %}
                 <div class="podium-col first">
                     <div class="podium-rank">1</div>
                     <div class="podium-name">{{ top_scores[0].name }}</div>
-                    <div class="podium-score">{{ top_scores[0].score }}</div>
+                    <div class="podium-score">{{ top_scores[0].score|thousands }}</div>
                 </div>
                 {% endif %}
                 {% if top_scores|length >= 3 %}
                 <div class="podium-col third">
                     <div class="podium-rank">3</div>
                     <div class="podium-name">{{ top_scores[2].name }}</div>
-                    <div class="podium-score">{{ top_scores[2].score }}</div>
+                    <div class="podium-score">{{ top_scores[2].score|thousands }}</div>
                 </div>
                 {% endif %}
             </div>
@@ -263,7 +263,7 @@
                         <tr>
                             <td>{{ loop.index }}</td>
                             <td>{{ entry.name }}</td>
-                            <td>{{ entry.score }}</td>
+                            <td>{{ entry.score|thousands }}</td>
                             <td>{{ entry.created_at }}</td>
                         </tr>
                         {% endfor %}
@@ -296,7 +296,7 @@
                         <tr>
                             <td>{{ s.rank }}</td>
                             <td>{{ s.name }}</td>
-                            <td>{{ s.best_score if s.best_score is not none else '—' }}</td>
+                            <td>{{ s.best_score|thousands if s.best_score is not none else '—' }}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -332,7 +332,7 @@
                 `<tr>
                     <td>${i + 1}</td>
                     <td>${escHtml(s.name)}</td>
-                    <td>${s.score}</td>
+                    <td>${Number(s.score).toLocaleString()}</td>
                     <td>${escHtml(s.created_at || '')}</td>
                 </tr>`
             ).join('');
@@ -361,7 +361,7 @@
                 `<tr>
                     <td>${s.rank}</td>
                     <td>${escHtml(s.name)}</td>
-                    <td>${s.best_score != null ? s.best_score : '—'}</td>
+                    <td>${s.best_score != null ? Number(s.best_score).toLocaleString() : '—'}</td>
                 </tr>`
             ).join('');
         }
@@ -387,7 +387,7 @@
                 html += `<div class="podium-col second">
                     <div class="podium-rank">2</div>
                     <div class="podium-name">${escHtml(top3[1].name)}</div>
-                    <div class="podium-score">${top3[1].score}</div>
+                    <div class="podium-score">${Number(top3[1].score).toLocaleString()}</div>
                 </div>`;
             }
             // 1st (order 2)
@@ -395,7 +395,7 @@
                 html += `<div class="podium-col first">
                     <div class="podium-rank">1</div>
                     <div class="podium-name">${escHtml(top3[0].name)}</div>
-                    <div class="podium-score">${top3[0].score}</div>
+                    <div class="podium-score">${Number(top3[0].score).toLocaleString()}</div>
                 </div>`;
             }
             // 3rd (order 3)
@@ -403,7 +403,7 @@
                 html += `<div class="podium-col third">
                     <div class="podium-rank">3</div>
                     <div class="podium-name">${escHtml(top3[2].name)}</div>
-                    <div class="podium-score">${top3[2].score}</div>
+                    <div class="podium-score">${Number(top3[2].score).toLocaleString()}</div>
                 </div>`;
             }
             podium.innerHTML = html;

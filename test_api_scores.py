@@ -1303,7 +1303,7 @@ class TestGetScoreboard:
         resp = client.get("/scoreboard")
         body = resp.data.decode("utf-8")
         assert "TestPlayer" in body
-        assert "4200" in body
+        assert "4,200" in body
 
 
 # ===========================================================================
