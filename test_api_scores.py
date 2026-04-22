@@ -1690,6 +1690,7 @@ class TestAboutAPI:
         assert "total_players" in data
         assert "total_scores" in data
         assert "total_tournaments" in data
+        assert "build_year" in data
 
     def test_app_name_and_version(self, client):
         """PARE-54: /api/about returns correct name and version."""
@@ -1776,6 +1777,19 @@ class TestAboutPage:
         body = client.get("/about").data.decode("utf-8")
         assert "style.css" in body
 
+    def test_build_year_rendered_on_page(self, client):
+        """PARE-54: /about renders the build year."""
+        from datetime import datetime
+        expected = str(datetime.utcnow().year)
+        body = client.get("/about").data.decode("utf-8")
+        assert expected in body
+
+    def test_build_year_api(self, client):
+        """PARE-54: /api/about returns build year matching current year."""
+        from datetime import datetime
+        data = client.get("/api/about").get_json()
+        assert data["build_year"] == datetime.utcnow().year
+
 
 # ---------------------------------------------------------------------------
 # PARE-54 additional edge case tests (added by Tester)
@@ -1834,7 +1848,7 @@ class TestAboutAPIEdgeCases:
     def test_no_extra_unexpected_keys(self, client):
         """PARE-54: API response contains exactly the expected keys, nothing extra."""
         data = client.get("/api/about").get_json()
-        expected_keys = {"name", "version", "total_players", "total_scores", "total_tournaments"}
+        expected_keys = {"name", "version", "total_players", "total_scores", "total_tournaments", "build_year"}
         assert set(data.keys()) == expected_keys
 
 
