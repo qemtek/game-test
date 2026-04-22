@@ -2903,3 +2903,36 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ---------------------------------------------------------------------------
+# T-02 — format_score filter
+# ---------------------------------------------------------------------------
+
+class TestFormatScoreFilter:
+    def test_filter_adds_comma(self):
+        """T-02: format_score formats 1000 as '1,000'."""
+        from app import format_score
+        assert format_score(1000) == "1,000"
+
+    def test_filter_large_number(self):
+        """T-02: format_score formats 1234567 as '1,234,567'."""
+        from app import format_score
+        assert format_score(1234567) == "1,234,567"
+
+    def test_filter_small_number(self):
+        """T-02: format_score leaves numbers below 1000 unchanged."""
+        from app import format_score
+        assert format_score(500) == "500"
+
+    def test_scoreboard_renders_comma_score(self, client):
+        """T-02: /scoreboard renders a score >= 1000 with comma separator."""
+        post_score(client, "Alice", 12345)
+        body = client.get("/scoreboard").data.decode("utf-8")
+        assert "12,345" in body
+
+    def test_history_renders_comma_score(self, client):
+        """T-02: /history renders a score >= 1000 with comma separator."""
+        post_score(client, "Bob", 9876)
+        body = client.get("/history").data.decode("utf-8")
+        assert "9,876" in body
