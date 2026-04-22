@@ -815,20 +815,7 @@ def api_streaks():
 def streaks_page():
     """HTML table of player streaks sorted by current_streak DESC."""
     streaks = _get_streaks_data()
-    with database.get_db() as conn:
-        rows = conn.execute(
-            "SELECT date(created_at) AS day, COUNT(*) AS cnt FROM scores "
-            "WHERE created_at >= date('now', '-84 days') GROUP BY day"
-        ).fetchall()
-    day_map = {dict(r)["day"]: dict(r)["cnt"] for r in rows}
-    from datetime import datetime, timedelta
-    today = datetime.utcnow().date()
-    heatmap_data = []
-    for i in range(83, -1, -1):
-        d = today - timedelta(days=i)
-        key = d.isoformat()
-        heatmap_data.append({"date": key, "count": day_map.get(key, 0)})
-    return render_template('streaks.html', streaks=streaks, heatmap_data=heatmap_data)
+    return render_template('streaks.html', streaks=streaks)
 
 
 # ---------------------------------------------------------------------------
