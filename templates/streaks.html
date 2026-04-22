@@ -88,6 +88,55 @@
         a.nav-link:hover {
             color: #86efac;
         }
+
+        /* Streak Heatmap */
+        .heatmap-section {
+            margin-top: 2rem;
+        }
+
+        .heatmap-section h2 {
+            color: #4ade80;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-rows: repeat(7, 1fr);
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            gap: 3px;
+            width: fit-content;
+        }
+
+        .heatmap-day {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+            background-color: #0f172a;
+        }
+
+        .heatmap-day.level-1 { background-color: #064e3b; }
+        .heatmap-day.level-2 { background-color: #065f46; }
+        .heatmap-day.level-3 { background-color: #047857; }
+        .heatmap-day.level-4 { background-color: #10b981; }
+
+        .heatmap-legend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .heatmap-legend .swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -122,5 +171,25 @@
         <p class="empty-state">No streak data yet.</p>
         {% endif %}
     </div>
+
+    {% if heatmap_data %}
+    <div class="heatmap-section">
+        <h2>Daily Games — Last 84 Days</h2>
+        <div class="heatmap-grid">
+            {% for d in heatmap_data %}
+            <div class="heatmap-day {% if d.count >= 10 %}level-4{% elif d.count >= 5 %}level-3{% elif d.count >= 3 %}level-2{% elif d.count >= 1 %}level-1{% endif %}" title="{{ d.date }}: {{ d.count }} games"></div>
+            {% endfor %}
+        </div>
+        <div class="heatmap-legend">
+            <span>Less</span>
+            <div class="swatch" style="background-color: #0f172a;"></div>
+            <div class="swatch" style="background-color: #064e3b;"></div>
+            <div class="swatch" style="background-color: #065f46;"></div>
+            <div class="swatch" style="background-color: #047857;"></div>
+            <div class="swatch" style="background-color: #10b981;"></div>
+            <span>More</span>
+        </div>
+    </div>
+    {% endif %}
 </body>
 </html>
