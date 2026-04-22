@@ -88,11 +88,105 @@
         a.nav-link:hover {
             color: #86efac;
         }
+
+        .heatmap-section {
+            margin-top: 2rem;
+        }
+
+        .heatmap-section h2 {
+            color: #4ade80;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 3px;
+            max-width: 600px;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            font-size: 0.5rem;
+            text-align: center;
+            line-height: 1.8;
+            color: transparent;
+            transition: color 0.15s;
+        }
+
+        .heatmap-cell:hover {
+            color: #e0e0e0;
+        }
+
+        .heatmap-cell.none {
+            background-color: #1e293b;
+        }
+
+        .heatmap-cell.low {
+            background-color: #064e3b;
+        }
+
+        .heatmap-cell.medium {
+            background-color: #047857;
+        }
+
+        .heatmap-cell.high {
+            background-color: #10b981;
+        }
+
+        .heatmap-cell.very-high {
+            background-color: #4ade80;
+        }
+
+        .heatmap-legend {
+            display: flex;
+            gap: 0.8rem;
+            margin-top: 0.8rem;
+            font-size: 0.7rem;
+            color: #6b7280;
+            align-items: center;
+        }
+
+        .heatmap-legend .legend-cell {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+            vertical-align: middle;
+        }
+
+        .heatmap-legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
     </style>
 </head>
 <body>
     <h1>Player Streaks</h1>
     <p class="subtitle"><a href="/" class="nav-link">← Back to Game</a></p>
+
+    <div class="heatmap-section">
+        <h2>Activity Heatmap (12 weeks)</h2>
+        <div class="heatmap-grid">
+            {% for week in heatmap_data %}
+            {% for day in week %}
+            <div class="heatmap-cell {{ day.level }}" title="{{ day.date }}: {{ day.count }} game(s)"></div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+        <div class="heatmap-legend">
+            <div class="legend-item"><span class="legend-cell" style="background:#1e293b"></span>0</div>
+            <div class="legend-item"><span class="legend-cell" style="background:#064e3b"></span>1–2</div>
+            <div class="legend-item"><span class="legend-cell" style="background:#047857"></span>3–5</div>
+            <div class="legend-item"><span class="legend-cell" style="background:#10b981"></span>6–10</div>
+            <div class="legend-item"><span class="legend-cell" style="background:#4ade80"></span>11+</div>
+        </div>
+    </div>
 
     <div class="streaks-container">
         {% if streaks %}
