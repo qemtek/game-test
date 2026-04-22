@@ -2464,6 +2464,49 @@ class TestApiStreaks:
         assert resp.status_code == 405
 
 
+class TestStreaksHeatmap:
+    """Tests for the 12-week activity heatmap on /streaks [T-14]."""
+
+    def test_heatmap_grid_present(self, client):
+        """T-14: heatmap grid container exists."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-grid' in body
+
+    def test_heatmap_84_cells(self, client):
+        """T-14: heatmap has 84 cells (7 rows x 12 columns)."""
+        import re
+        body = client.get("/streaks").data.decode("utf-8")
+        cells = len(re.findall(r'class="heatmap-cell', body))
+        assert cells == 84, f"expected 84 cells, got {cells}"
+
+    def test_heatmap_legend_present(self, client):
+        """T-14: legend explaining intensity levels is present."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-legend' in body
+
+    def test_heatmap_intensity_levels(self, client):
+        """T-14: heatmap has multiple CSS intensity classes."""
+        import database as db
+        with db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO scores (name, score, created_at) VALUES ('HM', 100, date('now'))"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'heatmap-cell' in body
+        assert 'level-low' in body
+
+    def test_streak_table_still_present(self, client):
+        """T-14: existing streak table with all 4 column headers still present."""
+        post_score(client, "HeatTest", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "Player" in body
+        assert "Current Streak" in body
+        assert "Best Streak" in body
+        assert "Last Played" in body
+
+
+# ---------------------------------------------------------------------------
 class TestStreaksPage:
     """Tests for GET /streaks HTML page [PARE-69]."""
 
