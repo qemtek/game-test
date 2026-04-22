@@ -60,6 +60,32 @@
             padding: 1rem;
         }
 
+        .empty-card {
+            background: #1a1a2e;
+            border: 1px solid #2d2d4e;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .empty-card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-card p {
+            color: #6b7280;
+            margin: 0.5rem 0;
+        }
+
+        .empty-card p:first-of-type {
+            color: #4ade80;
+            font-family: monospace;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+        }
+
         a.nav-link {
             color: #4ade80;
             text-decoration: none;
@@ -80,6 +106,7 @@
     <div class="history-container">
         <div class="history-section">
             <h2>Recent Games</h2>
+            {% if entries %}
             <table class="history-table">
                 <thead>
                     <tr>
@@ -90,20 +117,23 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% if entries %}
-                        {% for entry in entries %}
-                        <tr>
-                            <td>{{ entry.rank }}</td>
-                            <td>{{ entry.name }}</td>
-                            <td>{{ entry.score }}</td>
-                            <td>{{ entry.time_ago }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr><td colspan="4" class="empty-state">No scores yet</td></tr>
-                    {% endif %}
+                    {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.rank }}</td>
+                        <td>{{ entry.name }}</td>
+                        <td>{{ entry.score }}</td>
+                        <td>{{ entry.time_ago }}</td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
+            {% else %}
+            <div class="empty-card">
+                <div class="empty-card-icon">🎮</div>
+                <p>No scores yet</p>
+                <p>Start a game and your scores will appear here</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 </body>
