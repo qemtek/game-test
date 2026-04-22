@@ -88,6 +88,61 @@
         a.nav-link:hover {
             color: #86efac;
         }
+
+        /* Heatmap */
+        .heatmap-section {
+            margin-top: 2rem;
+        }
+        .heatmap-section h2 {
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 4px;
+            max-width: 800px;
+        }
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 3px;
+            background-color: #111827;
+            border: 1px solid #1e293b;
+        }
+        .heatmap-cell.level-low {
+            background-color: #064e3b;
+        }
+        .heatmap-cell.level-medium {
+            background-color: #047857;
+        }
+        .heatmap-cell.level-high {
+            background-color: #10b981;
+        }
+        .heatmap-cell.level-very-high {
+            background-color: #34d399;
+        }
+        .heatmap-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-family: 'Courier New', monospace;
+            align-items: center;
+        }
+        .heatmap-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+            border: 1px solid #1e293b;
+        }
     </style>
 </head>
 <body>
@@ -121,6 +176,22 @@
         {% else %}
         <p class="empty-state">No streak data yet.</p>
         {% endif %}
+
+        <div class="heatmap-section">
+            <h2>12-Week Activity Heatmap</h2>
+            <div class="heatmap-grid">
+                {% for entry in heatmap_data %}
+                <div class="heatmap-cell {{ 'level-low' if entry.count == 1 else '' }}{{ 'level-medium' if entry.count >= 2 and entry.count <= 4 else '' }}{{ 'level-high' if entry.count >= 5 and entry.count <= 9 else '' }}{{ 'level-very-high' if entry.count >= 10 else '' }}" title="{{ entry.date }}: {{ entry.count }} games"></div>
+                {% endfor %}
+            </div>
+            <div class="heatmap-legend">
+                <span class="heatmap-legend-item"><span class="legend-swatch" style="background:#111827"></span> 0</span>
+                <span class="heatmap-legend-item"><span class="legend-swatch" style="background:#064e3b"></span> 1–2</span>
+                <span class="heatmap-legend-item"><span class="legend-swatch" style="background:#047857"></span> 3–5</span>
+                <span class="heatmap-legend-item"><span class="legend-swatch" style="background:#10b981"></span> 6–10</span>
+                <span class="heatmap-legend-item"><span class="legend-swatch" style="background:#34d399"></span> 10+</span>
+            </div>
+        </div>
     </div>
 </body>
 </html>
