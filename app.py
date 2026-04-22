@@ -577,6 +577,7 @@ def _get_about_data():
     return {
         'name': 'Game Score Tracker',
         'version': '1.0.0',
+        'current_year': datetime.now().year,
         'total_players': total_players,
         'total_scores': total_scores,
         'total_tournaments': total_tournaments,
