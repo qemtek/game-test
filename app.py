@@ -574,9 +574,11 @@ def _get_about_data():
         total_tournaments = conn.execute(
             'SELECT COUNT(*) FROM tournaments'
         ).fetchone()[0]
+    year = datetime.now().year
     return {
         'name': 'Game Score Tracker',
         'version': '1.0.0',
+        'year': year,
         'total_players': total_players,
         'total_scores': total_scores,
         'total_tournaments': total_tournaments,

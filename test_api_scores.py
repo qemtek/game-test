@@ -1834,7 +1834,7 @@ class TestAboutAPIEdgeCases:
     def test_no_extra_unexpected_keys(self, client):
         """PARE-54: API response contains exactly the expected keys, nothing extra."""
         data = client.get("/api/about").get_json()
-        expected_keys = {"name", "version", "total_players", "total_scores", "total_tournaments"}
+        expected_keys = {"name", "version", "year", "total_players", "total_scores", "total_tournaments"}
         assert set(data.keys()) == expected_keys
 
 
