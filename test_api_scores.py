@@ -1873,6 +1873,13 @@ class TestAboutPageEdgeCases:
         resp = client.post("/api/about", json={})
         assert resp.status_code == 405
 
+    def test_shows_current_year(self, client):
+        """T-03: /about renders the current year as a build stamp."""
+        from datetime import datetime
+        year = str(datetime.now().year)
+        body = client.get("/about").data.decode("utf-8")
+        assert year in body
+
 
 # ---------------------------------------------------------------------------
 # PARE-61: Badge system
