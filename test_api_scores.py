@@ -2903,3 +2903,122 @@ class TestPlayerProfilePageEdgeCases:
         assert "Rank" in body
         assert "Score" in body
         assert "Date" in body
+
+
+# ---------------------------------------------------------------------------
+# PARE-77 — Player profile avatar circle with initials
+# ---------------------------------------------------------------------------
+
+class TestPlayerAvatar:
+    """Tests for ticket #77: circular avatar with initials on /player/<name> page."""
+
+    def test_avatar_div_present(self, client):
+        """AC1: /player/PixelKnight shows a green-bordered circle above the player name."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert 'class="player-avatar"' in body
+
+    def test_multi_word_initials(self, client):
+        """AC2: Multi-word name "Pixel Knight" → initials "PK"."""
+        post_score(client, "Pixel Knight", 500)
+        body = client.get("/player/Pixel Knight").data.decode("utf-8")
+        assert ">PK<" in body
+
+    def test_single_word_initials(self, client):
+        """AC2: Single-word name "PixelKnight" → initials "PI" (first 2 chars upper)."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert ">PI<" in body
+
+    def test_single_char_name(self, client):
+        """AC2: Single-char name "X" → initials "X" (first 2 chars of a 1-char string)."""
+        post_score(client, "X", 500)
+        body = client.get("/player/X").data.decode("utf-8")
+        # player_name[0:2] for 'X' → 'X', upper → 'X'
+        assert ">X<" in body
+
+    def test_three_word_name_takes_first_two(self, client):
+        """AC2: Three-word name "A B C" → initials "AB" (max 2 chars)."""
+        post_score(client, "Alpha Beta Gamma", 500)
+        body = client.get("/player/Alpha Beta Gamma").data.decode("utf-8")
+        assert ">AB<" in body
+
+    def test_avatar_before_heading(self, client):
+        """AC3: Avatar div appears immediately before the player-heading h1."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        avatar_pos = body.index('class="player-avatar"')
+        heading_pos = body.index('class="player-heading"')
+        assert avatar_pos < heading_pos
+
+    def test_avatar_on_not_found_page(self, client):
+        """AC4: Avatar appears on all player pages, including not-found."""
+        body = client.get("/player/NonExistent").data.decode("utf-8")
+        assert 'class="player-avatar"' in body
+        # Initials for "NonExistent" → "NO"
+        assert ">NO<" in body
+
+    def test_page_still_has_chart(self, client):
+        """AC5: Page otherwise unchanged — SVG chart still present."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "<svg" in body
+
+    def test_page_still_has_history_table(self, client):
+        """AC5: Page otherwise unchanged — score history table still present."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "<table" in body
+
+    def test_page_still_has_stats(self, client):
+        """AC5: Page otherwise unchanged — stats summary still present."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        assert "Total Games" in body or "total" in body.lower()
+        assert "Best Score" in body or "best" in body.lower()
+
+    def test_avatar_css_properties_in_style_block(self, client):
+        """Visual: CSS for .player-avatar contains required properties."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        # Extract the <style> block
+        style_start = body.index("<style>")
+        style_end = body.index("</style>")
+        css = body[style_start:style_end]
+        assert "player-avatar" in css
+        assert "72px" in css
+        assert "border-radius: 50%" in css
+        assert "#1a1a2e" in css
+        assert "#4ade80" in css
+        assert "Courier New" in css
+
+    def test_avatar_is_centered(self, client):
+        """AC3: Avatar is centered on the page (margin: 0 auto)."""
+        post_score(client, "PixelKnight", 500)
+        body = client.get("/player/PixelKnight").data.decode("utf-8")
+        style_start = body.index("<style>")
+        style_end = body.index("</style>")
+        css = body[style_start:style_end]
+        assert "margin: 0 auto" in css or "margin:0 auto" in css
+
+    def test_initials_are_uppercase(self, client):
+        """AC2: Initials are always uppercase."""
+        post_score(client, "pixel knight", 500)
+        body = client.get("/player/pixel knight").data.decode("utf-8")
+        assert ">PK<" in body
+
+    def test_avatar_span_inside_div(self, client):
+        """Visual: Avatar contains a <span> element inside the div."""
+        post_score(client, "Alice", 500)
+        body = client.get("/player/Alice").data.decode("utf-8")
+        # The avatar div should contain: <div class="player-avatar"><span>AL</span></div>
+        assert '<div class="player-avatar"><span>' in body
+
+    def test_initials_only_on_player_page_not_profile(self, client):
+        """AC1: Avatar is on /player/<name> (player.html), not on /player/<name>/profile."""
+        post_score(client, "Alice", 500)
+        player_body = client.get("/player/Alice").data.decode("utf-8")
+        profile_body = client.get("/player/Alice/profile").data.decode("utf-8")
+        assert 'class="player-avatar"' in player_body
+        # profile page uses a different template — avatar should NOT be there
+        assert 'class="player-avatar"' not in profile_body
