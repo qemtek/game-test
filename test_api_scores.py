@@ -2538,6 +2538,53 @@ class TestStreaksPage:
         resp = client.post("/streaks", json={})
         assert resp.status_code == 405
 
+    def test_heatmap_section_present_with_scores(self, client):
+        """T-14: heatmap section renders when there are scores."""
+        post_score(client, "Alice", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert 'class="heatmap-grid"' in body
+
+    def test_heatmap_covers_84_days(self, client):
+        """T-14: heatmap renders exactly 84 cells."""
+        post_score(client, "Alice", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert body.count('class="heatmap-day') == 84
+
+    def test_heatmap_day_with_games_has_level_class(self, client):
+        """T-14: a day with games gets a level-N CSS class."""
+        import database as db
+        from datetime import date, timedelta
+        today = date.today().isoformat()
+        with db.get_db() as conn:
+            conn.execute(
+                f"INSERT INTO scores (name, score, created_at) VALUES ('Alice', 100, '{today}T10:00:00+00:00')"
+            )
+            conn.commit()
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "level-1" in body or "level-2" in body or "level-3" in body or "level-4" in body
+
+    def test_heatmap_legend_present(self, client):
+        """T-14: heatmap legend is rendered."""
+        post_score(client, "Alice", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "heatmap-legend" in body
+        assert "Less" in body
+        assert "More" in body
+
+    def test_heatmap_always_84_cells_even_empty_db(self, client):
+        """T-14: heatmap always renders 84 cells (zeros fill gaps)."""
+        body = client.get("/streaks").data.decode("utf-8")
+        assert body.count('class="heatmap-day') == 84
+
+    def test_existing_table_headers_intact(self, client):
+        """T-14: adding heatmap does not remove existing table headers."""
+        post_score(client, "Alice", 100)
+        body = client.get("/streaks").data.decode("utf-8")
+        assert "Player" in body
+        assert "Current Streak" in body
+        assert "Best Streak" in body
+        assert "Last Played" in body
+
 
 # ---------------------------------------------------------------------------
 # PARE-75 — Player profile page with stats
