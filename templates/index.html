@@ -1,12 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Snake{% endblock %}
+
+{% block content %}
     <h1>Snake</h1>
     <p class="subtitle">Use arrow keys or WASD</p>
 
@@ -72,5 +68,4 @@
 
     <p style="text-align:center; margin-top:1rem;"><a href="/history" style="color:#4ade80; text-decoration:none; font-family:'Courier New',monospace; font-size:0.85rem; letter-spacing:2px; text-transform:uppercase;">&#9654; History</a></p>
     <script src="/static/game.js"></script>
-</body>
-</html>
+{% endblock %}

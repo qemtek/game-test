@@ -205,3 +205,32 @@ button:disabled {
     margin-top: 0.25rem;
     height: 1rem;
 }
+
+.main-nav {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.nav-item {
+    color: #6b7280;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.nav-item:hover {
+    color: #86efac;
+}
+
+.nav-item.active {
+    color: #4ade80;
+    border: 1px solid #4ade80;
+    background: rgba(74, 222, 128, 0.08);
+}
